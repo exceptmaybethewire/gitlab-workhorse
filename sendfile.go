@@ -29,7 +29,7 @@ func newSendFileResponseModifier(rw http.ResponseWriter, req *http.Request) *res
 
 	m.modify = func() {
 		// Serve the file
-		log.Printf("SendFile: serving %q", file)
+		log.Printf("Send file %q for %s %q", file, s.req.Method, s.req.RequestURI)
 		content, fi, err := openFile(file)
 		if err != nil {
 			http.NotFound(m.rw, req)

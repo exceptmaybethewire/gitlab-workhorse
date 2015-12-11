@@ -43,9 +43,10 @@ func (l *loggingResponseWriter) WriteHeader(status int) {
 }
 
 func (l *loggingResponseWriter) Log(r *http.Request) {
-	fmt.Printf("%s %s - - [%s] %q %d %d %q %q\n",
+	duration := time.Since(l.started)
+	fmt.Printf("%s %s - - [%s] %q %d %d %q %q %f\n",
 		r.Host, r.RemoteAddr, l.started,
 		fmt.Sprintf("%s %s %s", r.Method, r.RequestURI, r.Proto),
-		l.status, l.written, r.Referer(), r.UserAgent(),
+		l.status, l.written, r.Referer(), r.UserAgent(), duration.Seconds(),
 	)
 }

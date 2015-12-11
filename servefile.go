@@ -42,7 +42,7 @@ func handleServeFile(documentRoot *string, cache CacheMode, notFoundHandler serv
 			}
 		}
 
-		// If not found open the file
+		// If not found, open the original file
 		if content == nil || err != nil {
 			content, fi, err = openFile(file)
 		}
@@ -64,7 +64,7 @@ func handleServeFile(documentRoot *string, cache CacheMode, notFoundHandler serv
 			w.Header().Set("Expires", cacheUntil)
 		}
 
-		log.Printf("StaticFile: serving %q %q", file, w.Header().Get("Content-Encoding"))
+		log.Printf("Send static file %q (%q) for %s %q", file, w.Header().Get("Content-Encoding"), r.Method, r.RequestURI)
 		http.ServeContent(w, r.Request, filepath.Base(file), fi.ModTime(), content)
 	}
 }

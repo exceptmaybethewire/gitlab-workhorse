@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -20,6 +21,8 @@ func (p *proxyRoundTripper) RoundTrip(r *http.Request) (res *http.Response, err 
 	// instead of 500s we catch the RoundTrip error here and inject a
 	// 502 response.
 	if err != nil {
+		logError(fmt.Errorf("proxyRoundTripper: %s %q failed with: %q", r.Method, r.RequestURI, err))
+
 		res = &http.Response{
 			StatusCode: http.StatusBadGateway,
 			Status:     http.StatusText(http.StatusBadGateway),
