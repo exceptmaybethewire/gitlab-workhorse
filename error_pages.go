@@ -9,9 +9,9 @@ import (
 )
 
 func newErrorPageResponseModifier(w http.ResponseWriter, path *string) *responseModifier {
+	var data []byte
 	m := &responseModifier{rw: w}
 
-	var data []byte
 	m.wantModify = func() bool {
 		if 400 <= m.status && m.status <= 599 {
 			var err error

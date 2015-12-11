@@ -12,12 +12,9 @@ import (
 )
 
 func newSendFileResponseModifier(rw http.ResponseWriter, req *http.Request) *responseModifier {
-	req.Header.Set("X-Sendfile-Type", "X-Sendfile")
-	m := &responseModifier{
-		rw: rw,
-	}
-
 	var file string
+	m := &responseModifier{rw: rw}
+
 	m.wantModify = func() bool {
 		// Check X-Sendfile header
 		file = m.Header().Get("X-Sendfile")
@@ -29,7 +26,7 @@ func newSendFileResponseModifier(rw http.ResponseWriter, req *http.Request) *res
 
 	m.modify = func() {
 		// Serve the file
-		log.Printf("Send file %q for %s %q", file, s.req.Method, s.req.RequestURI)
+		log.Printf("Send file %q for %s %q", file, req.Method, req.RequestURI)
 		content, fi, err := openFile(file)
 		if err != nil {
 			http.NotFound(m.rw, req)
@@ -41,5 +38,6 @@ func newSendFileResponseModifier(rw http.ResponseWriter, req *http.Request) *res
 
 	}
 
+	req.Header.Set("X-Sendfile-Type", "X-Sendfile")
 	return m
 }
