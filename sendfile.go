@@ -11,68 +11,35 @@ import (
 	"net/http"
 )
 
-type sendFileResponseWriter struct {
-	rw       http.ResponseWriter
-	status   int
-	hijacked bool
-	req      *http.Request
-}
-
-func newSendFileResponseWriter(rw http.ResponseWriter, req *http.Request) sendFileResponseWriter {
-	s := sendFileResponseWriter{
-		rw:  rw,
-		req: req,
-	}
+func newSendFileResponseModifier(rw http.ResponseWriter, req *http.Request) *responseModifier {
 	req.Header.Set("X-Sendfile-Type", "X-Sendfile")
-	return s
-}
-
-func (s *sendFileResponseWriter) Header() http.Header {
-	return s.rw.Header()
-}
-
-func (s *sendFileResponseWriter) Write(data []byte) (n int, err error) {
-	if s.status == 0 {
-		s.WriteHeader(http.StatusOK)
-	}
-	if s.hijacked {
-		return
-	}
-	return s.rw.Write(data)
-}
-
-func (s *sendFileResponseWriter) WriteHeader(status int) {
-	if s.status != 0 {
-		return
+	m := &responseModifier{
+		rw: rw,
 	}
 
-	s.status = status
+	var file string
+	m.wantModify = func() bool {
+		// Check X-Sendfile header
+		file = m.Header().Get("X-Sendfile")
+		m.Header().Del("X-Sendfile")
 
-	// Check X-Sendfile header
-	file := s.Header().Get("X-Sendfile")
-	s.Header().Del("X-Sendfile")
-
-	// If file is empty or status is not 200 pass through header
-	if file == "" || s.status != http.StatusOK {
-		s.rw.WriteHeader(s.status)
-		return
+		// If file is empty or status is not 200 pass through header
+		return file != "" && m.status == http.StatusOK
 	}
 
-	// Mark this connection as hijacked
-	s.hijacked = true
+	m.modify = func() {
+		// Serve the file
+		log.Printf("SendFile: serving %q", file)
+		content, fi, err := openFile(file)
+		if err != nil {
+			http.NotFound(m.rw, req)
+			return
+		}
+		defer content.Close()
 
-	// Serve the file
-	log.Printf("SendFile: serving %q", file)
-	content, fi, err := openFile(file)
-	if err != nil {
-		http.NotFound(s.rw, s.req)
-		return
+		http.ServeContent(m.rw, req, "", fi.ModTime(), content)
+
 	}
-	defer content.Close()
 
-	http.ServeContent(s.rw, s.req, "", fi.ModTime(), content)
-}
-
-func (s *sendFileResponseWriter) Flush() {
-	s.WriteHeader(http.StatusOK)
+	return m
 }
