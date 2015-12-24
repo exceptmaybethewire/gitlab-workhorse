@@ -50,7 +50,9 @@ const projectPattern = `^/[^/]+/[^/]+/`
 const gitProjectPattern = `^/[^/]+/[^/]+\.git/`
 
 const apiPattern = `^/api/`
-const projectsAPIPattern = `^/api/v3/projects/[^/]+/`
+
+// Handle project IDs in two forms: integer ID and group/project_name
+const projectsAPIPattern = `^/api/v3/projects/([^/]+|[^/]+/[^/]+)/`
 
 const ciAPIPattern = `^/ci/api/`
 

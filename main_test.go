@@ -196,6 +196,25 @@ func TestAllowedApiDownloadZip(t *testing.T) {
 	runOrFail(t, extractCmd)
 }
 
+func TestAllowedApiDownloadZipWithProjectName(t *testing.T) {
+	prepareDownloadDir(t)
+
+	// Prepare test server and backend
+	archiveName := "foobar.zip"
+	ts := testAuthServer(nil, 200, archiveOkBody(t, archiveName))
+	defer ts.Close()
+	ws := startWorkhorseServer(ts.URL)
+	defer ws.Close()
+
+	downloadCmd := exec.Command("curl", "-J", "-O", fmt.Sprintf("%s/api/v3/projects/%s/repository/archive.zip", ws.URL, testProject))
+	downloadCmd.Dir = scratchDir
+	runOrFail(t, downloadCmd)
+
+	extractCmd := exec.Command("unzip", archiveName)
+	extractCmd.Dir = scratchDir
+	runOrFail(t, extractCmd)
+}
+
 func TestDownloadCacheHit(t *testing.T) {
 	prepareDownloadDir(t)
 
