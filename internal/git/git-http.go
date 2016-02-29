@@ -7,6 +7,7 @@ package git
 import (
 	"../api"
 	"../helper"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -139,18 +140,30 @@ func handlePostRPC(w http.ResponseWriter, r *http.Request, a *api.Response) {
 	// so let's free up some resources already.
 	r.Body.Close()
 
+	bodyWriter := w
+	if action == "git-receive-pack" {
+		// A 'git push' from the client has a small response so it should be OK
+		// to buffer it in memory. If a Git hook on the server rejects the push
+		// it is nice to return a non-200 HTTP status code to the HTTP Git client
+		// so it 'knows' the push was not succesful. Because there is no way (?)
+		// to distinguish between errors (e.g. disk full) and Git hook rejections
+		// the error response from gitlab-workhorse will always be HTTP 500
+		// (Internal Server Error).
+		bodyWriter := &bytes.Buffer{} // buffer the entire response in memory
+		defer flushBuffer(w, bodyWriter)
+	}
+
 	// Start writing the response
 	w.Header().Add("Content-Type", fmt.Sprintf("application/x-%s-result", action))
 	w.Header().Add("Cache-Control", "no-cache")
-	w.WriteHeader(200) // Don't bother with HTTP 500 from this point on, just return
 
 	// This io.Copy may take a long time, both for Git push and pull.
-	if _, err := io.Copy(w, stdout); err != nil {
-		helper.LogError(fmt.Errorf("handlePostRPC copy output of %v: %v", cmd.Args, err))
+	if _, err := io.Copy(bodyWriter, stdout); err != nil {
+		helper.Fail500(w, fmt.Errorf("handlePostRPC copy output of %v: %v", cmd.Args, err))
 		return
 	}
 	if err := cmd.Wait(); err != nil {
-		helper.LogError(fmt.Errorf("handlePostRPC wait for %v: %v", cmd.Args, err))
+		helper.Fail500(w, fmt.Errorf("handlePostRPC wait for %v: %v", cmd.Args, err))
 		return
 	}
 }
@@ -167,4 +180,10 @@ func pktLine(w io.Writer, s string) error {
 func pktFlush(w io.Writer) error {
 	_, err := fmt.Fprint(w, "0000")
 	return err
+}
+
+func flushBuffer(w http.ResponseWriter, buf io.Reader) {
+	if _, err := io.Copy(w, buf); err != nil {
+		helper.Fail500(w, fmt.Errorf("handlePostRPC flush response buffer: %v", err))
+	}
 }
