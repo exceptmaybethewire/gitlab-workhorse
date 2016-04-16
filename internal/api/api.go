@@ -53,6 +53,8 @@ type Response struct {
 	Archive string `json:"archive"`
 	// Entry is a filename inside the archive point to file that needs to be extracted
 	Entry string `json:"entry"`
+	// TraceFile is a filename of build trace file
+	TraceFile string `json:"trace_file"`
 }
 
 // singleJoiningSlash is taken from reverseproxy.go:NewSingleHostReverseProxy

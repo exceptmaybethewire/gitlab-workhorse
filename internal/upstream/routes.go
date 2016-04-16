@@ -6,6 +6,7 @@ import (
 
 	apipkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/artifacts"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/builds"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/lfs"
 	proxypkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/proxy"
@@ -60,6 +61,9 @@ func (u *Upstream) configureRoutes() {
 		// CI Artifacts
 		route{"GET", regexp.MustCompile(projectPattern + `builds/[0-9]+/artifacts/file/`), contentEncodingHandler(artifacts.DownloadArtifact(api))},
 		route{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
+
+		// CI RAW build trace
+		route{"GET", regexp.MustCompile(projectPattern + `builds/[0-9]+/raw\z`), contentEncodingHandler(builds.RawTrace(api))},
 
 		// Explicitly proxy API requests
 		route{"", regexp.MustCompile(apiPattern), proxy},
