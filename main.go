@@ -41,6 +41,7 @@ var documentRoot = flag.String("documentRoot", "public", "Path to static files c
 var proxyHeadersTimeout = flag.Duration("proxyHeadersTimeout", 5*time.Minute, "How long to wait for response headers when proxying the request")
 var developmentMode = flag.Bool("developmentMode", false, "Allow to serve assets from Rails app")
 var secretPath = flag.String("secretPath", "./.gitlab_workhorse_secret", "File with secret key to authenticate with authBackend")
+var requestBufferSize = flag.Uint("requestBufferSize", 0, "Buffer size for request body buffers (0 means no buffering)")
 
 func main() {
 	flag.Usage = func() {
@@ -97,6 +98,7 @@ func main() {
 		*documentRoot,
 		*developmentMode,
 		*proxyHeadersTimeout,
+		*requestBufferSize,
 	)
 
 	log.Fatal(http.Serve(listener, up))

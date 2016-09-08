@@ -9,6 +9,7 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/lfs"
 	proxypkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/proxy"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/requestbuffer"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/sendfile"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/staticpages"
@@ -55,6 +56,10 @@ func (u *Upstream) configureRoutes() {
 		git.SendPatch,
 		artifacts.SendEntry,
 	)
+
+	if u.RequestBufferSize > 0 {
+		proxy = requestbuffer.New(u.RequestBufferSize, proxy)
+	}
 
 	u.Routes = []route{
 		// Git Clone

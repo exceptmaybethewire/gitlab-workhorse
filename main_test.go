@@ -876,6 +876,7 @@ func startWorkhorseServer(authBackend string) *httptest.Server {
 		testDocumentRoot,
 		false,
 		0,
+		1024,
 	)
 	return httptest.NewServer(u)
 }
