@@ -67,13 +67,13 @@ func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 
 	// Drop WebSocket connection and CONNECT method
 	if r.RequestURI == "*" {
-		helper.HTTPError(&w, r, "Connection upgrade not allowed", http.StatusBadRequest)
+		helper.HTTPError(w, r, "Connection upgrade not allowed", http.StatusBadRequest)
 		return
 	}
 
 	// Disallow connect
 	if r.Method == "CONNECT" {
-		helper.HTTPError(&w, r, "CONNECT not allowed", http.StatusBadRequest)
+		helper.HTTPError(w, r, "CONNECT not allowed", http.StatusBadRequest)
 		return
 	}
 
@@ -81,7 +81,7 @@ func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	URIPath := urlprefix.CleanURIPath(r.URL.Path)
 	prefix := u.URLPrefix
 	if !prefix.Match(URIPath) {
-		helper.HTTPError(&w, r, fmt.Sprintf("Not found %q", URIPath), http.StatusNotFound)
+		helper.HTTPError(w, r, fmt.Sprintf("Not found %q", URIPath), http.StatusNotFound)
 		return
 	}
 
@@ -101,9 +101,9 @@ func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	if !foundService {
 		// The protocol spec in git/Documentation/technical/http-protocol.txt
 		// says we must return 403 if no matching service is found.
-		helper.HTTPError(&w, r, "Forbidden", http.StatusForbidden)
+		helper.HTTPError(w, r, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	ro.handler.ServeHTTP(&w, r)
+	ro.handler.ServeHTTP(w, r)
 }
