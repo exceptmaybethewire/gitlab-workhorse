@@ -42,20 +42,21 @@ func (u *Upstream) configureRoutes() {
 		u.RoundTripper,
 	)
 	static := &staticpages.Static{u.DocumentRoot}
-	proxy := senddata.SendData(
-		sendfile.SendFile(
-			apipkg.Block(
-				proxypkg.NewProxy(
-					u.Backend,
-					u.Version,
-					u.RoundTripper,
-				))),
-		git.SendArchive,
-		git.SendBlob,
-		git.SendDiff,
-		git.SendPatch,
-		artifacts.SendEntry,
-	)
+	proxy := denyWebsocket(
+		senddata.SendData(
+			sendfile.SendFile(
+				apipkg.Block(
+					proxypkg.NewProxy(
+						u.Backend,
+						u.Version,
+						u.RoundTripper,
+					))),
+			git.SendArchive,
+			git.SendBlob,
+			git.SendDiff,
+			git.SendPatch,
+			artifacts.SendEntry,
+		))
 	apiProxyQueue := queueing.QueueRequests(proxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout)
 
 	u.Routes = []route{

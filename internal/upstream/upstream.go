@@ -65,18 +65,6 @@ func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	w := helper.NewLoggingResponseWriter(ow)
 	defer w.Log(r)
 
-	// Drop WebSocket connection and CONNECT method
-	if r.RequestURI == "*" {
-		helper.HTTPError(w, r, "Connection upgrade not allowed", http.StatusBadRequest)
-		return
-	}
-
-	// Disallow connect
-	if r.Method == "CONNECT" {
-		helper.HTTPError(w, r, "CONNECT not allowed", http.StatusBadRequest)
-		return
-	}
-
 	// Check URL Root
 	URIPath := urlprefix.CleanURIPath(r.URL.Path)
 	prefix := u.URLPrefix
@@ -106,4 +94,22 @@ func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	}
 
 	ro.handler.ServeHTTP(w, r)
+}
+
+func denyWebsocket(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Drop WebSocket connection and CONNECT method
+		if r.RequestURI == "*" {
+			helper.HTTPError(w, r, "Connection upgrade not allowed", http.StatusBadRequest)
+			return
+		}
+
+		// Disallow connect
+		if r.Method == "CONNECT" {
+			helper.HTTPError(w, r, "CONNECT not allowed", http.StatusBadRequest)
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
 }
