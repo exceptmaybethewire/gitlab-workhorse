@@ -6,25 +6,44 @@ import (
 	"time"
 )
 
-type LoggingResponseWriter struct {
+type LoggingResponseWriter interface {
+	http.ResponseWriter
+	Log(r *http.Request)
+}
+
+type loggingResponseWriter struct {
 	rw      http.ResponseWriter
 	status  int
 	written int64
 	started time.Time
 }
 
-func NewLoggingResponseWriter(rw http.ResponseWriter) *LoggingResponseWriter {
-	return &LoggingResponseWriter{
+type hijackResponseWriter struct {
+	LoggingResponseWriter
+	http.Hijacker
+}
+
+func NewLoggingResponseWriter(rw http.ResponseWriter) LoggingResponseWriter {
+	lrw := &loggingResponseWriter{
 		rw:      rw,
 		started: time.Now(),
 	}
+
+	if hj, ok := rw.(http.Hijacker); ok {
+		return &hijackResponseWriter{
+			LoggingResponseWriter: lrw,
+			Hijacker:              hj,
+		}
+	}
+
+	return lrw
 }
 
-func (l *LoggingResponseWriter) Header() http.Header {
+func (l *loggingResponseWriter) Header() http.Header {
 	return l.rw.Header()
 }
 
-func (l *LoggingResponseWriter) Write(data []byte) (n int, err error) {
+func (l *loggingResponseWriter) Write(data []byte) (n int, err error) {
 	if l.status == 0 {
 		l.WriteHeader(http.StatusOK)
 	}
@@ -33,7 +52,7 @@ func (l *LoggingResponseWriter) Write(data []byte) (n int, err error) {
 	return
 }
 
-func (l *LoggingResponseWriter) WriteHeader(status int) {
+func (l *loggingResponseWriter) WriteHeader(status int) {
 	if l.status != 0 {
 		return
 	}
@@ -42,7 +61,7 @@ func (l *LoggingResponseWriter) WriteHeader(status int) {
 	l.rw.WriteHeader(status)
 }
 
-func (l *LoggingResponseWriter) Log(r *http.Request) {
+func (l *loggingResponseWriter) Log(r *http.Request) {
 	duration := time.Since(l.started)
 	fmt.Printf("%s %s - - [%s] %q %d %d %q %q %f\n",
 		r.Host, r.RemoteAddr, l.started,
