@@ -45,6 +45,7 @@ var secretPath = flag.String("secretPath", "./.gitlab_workhorse_secret", "File w
 var apiLimit = flag.Uint("apiLimit", 0, "Number of API requests allowed at single time")
 var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowed to be queued")
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
+var websocketTerminalEnabled = flag.Bool("websocketTerminal", false, "Experimental INSECURE websocket terminal feature")
 
 func main() {
 	flag.Usage = func() {
@@ -94,16 +95,17 @@ func main() {
 	}
 
 	upConfig := upstream.Config{
-		Backend:             backendURL,
-		Socket:              *authSocket,
-		Version:             Version,
-		SecretPath:          *secretPath,
-		DocumentRoot:        *documentRoot,
-		DevelopmentMode:     *developmentMode,
-		ProxyHeadersTimeout: *proxyHeadersTimeout,
-		APILimit:            *apiLimit,
-		APIQueueLimit:       *apiQueueLimit,
-		APIQueueTimeout:     *apiQueueTimeout,
+		Backend:                  backendURL,
+		Socket:                   *authSocket,
+		Version:                  Version,
+		SecretPath:               *secretPath,
+		DocumentRoot:             *documentRoot,
+		DevelopmentMode:          *developmentMode,
+		ProxyHeadersTimeout:      *proxyHeadersTimeout,
+		APILimit:                 *apiLimit,
+		APIQueueLimit:            *apiQueueLimit,
+		APIQueueTimeout:          *apiQueueTimeout,
+		WebsocketTerminalEnabled: *websocketTerminalEnabled,
 	}
 
 	up := wrapRaven(upstream.NewUpstream(upConfig))

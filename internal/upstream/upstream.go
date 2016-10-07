@@ -21,16 +21,17 @@ import (
 var DefaultBackend = helper.URLMustParse("http://localhost:8080")
 
 type Config struct {
-	Backend             *url.URL
-	Version             string
-	SecretPath          string
-	DocumentRoot        string
-	DevelopmentMode     bool
-	Socket              string
-	ProxyHeadersTimeout time.Duration
-	APILimit            uint
-	APIQueueLimit       uint
-	APIQueueTimeout     time.Duration
+	Backend                  *url.URL
+	Version                  string
+	SecretPath               string
+	DocumentRoot             string
+	DevelopmentMode          bool
+	Socket                   string
+	ProxyHeadersTimeout      time.Duration
+	APILimit                 uint
+	APIQueueLimit            uint
+	APIQueueTimeout          time.Duration
+	WebsocketTerminalEnabled bool
 }
 
 type Upstream struct {
