@@ -21,8 +21,41 @@
 			"Rev": "379f8d0a68ca237cf8893a1cdfd4f574125e2c51"
 		},
 		{
+			"ImportPath": "github.com/kr/pty",
+			"Comment": "release.r56-35-gce7fa45",
+			"Rev": "ce7fa45920dc37a92de8377972e52bc55ffa8d57"
+		},
+		{
 			"ImportPath": "golang.org/x/net/websocket",
 			"Rev": "2a824cf9226006580a06d9fa8f10901c17b49ed5"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/internal",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/internal/identifier",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/unicode",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/internal/utf8internal",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/runes",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
+		},
+		{
+			"ImportPath": "golang.org/x/text/transform",
+			"Rev": "ede1cb9f9f2f84c3bace9ca113fd740fc916cdd0"
 		}
 	]
 }
