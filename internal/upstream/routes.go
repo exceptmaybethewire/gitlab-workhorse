@@ -13,6 +13,7 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/sendfile"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/staticpages"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/terminal"
 )
 
 type route struct {
@@ -69,7 +70,7 @@ func (u *Upstream) configureRoutes() {
 		// CI Artifacts
 		route{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
 
-		route{"", regexp.MustCompile(apiPattern + `websocket\z`), websocketEchoHandler},
+		route{"", regexp.MustCompile(projectPattern + `deployments/[0-9]+/terminal_websocket\z`), terminal.Handler},
 
 		// Explicitly proxy API requests
 		route{"", regexp.MustCompile(apiPattern), apiProxyQueue},
