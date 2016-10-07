@@ -49,23 +49,48 @@ func wsHandler(ws *websocket.Conn) {
 	// TODO: replace /bin/bash with:
 	//		 kubectl exec -ti <pod> --container <container name> -- /bin/bash
 	cmd := exec.Command("/bin/bash")
+
 	tty, err := pty.Start(cmd)
 	if err != nil {
 		panic(err)
 	}
-	defer tty.Close()
+	defer func() {
+		if process := cmd.Process; process != nil {
+			process.Kill()
+		}
+		if err := tty.Close(); err != nil {
+			log.Printf("close pty: %v", err)
+		}
+	}()
 
+	copyCh := make(chan error, 3)
 	// pipe to/fro websocket to the TTY:
 	go func() {
-		io.Copy(stdout, tty)
+		_, err := io.Copy(stdout, tty)
+		copyCh <- err
 	}()
 	go func() {
-		io.Copy(stderr, tty)
+		_, err := io.Copy(stderr, tty)
+		copyCh <- err
 	}()
 	go func() {
-		io.Copy(tty, stdin)
+		_, err := io.Copy(tty, stdin)
+		copyCh <- err
 	}()
 
-	// wait for the command to exit, then close the websocket
-	cmd.Wait()
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-copyCh:
+		if err != nil {
+			log.Printf("terminal: websocket copy: %v", err)
+		}
+	case err := <-waitCh:
+		if err != nil {
+			log.Printf("terminal: command wait: %v", err)
+		}
+	}
 }
