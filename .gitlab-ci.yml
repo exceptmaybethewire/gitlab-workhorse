@@ -1,7 +1,17 @@
-image: golang:1.6.2
+.test_template: &test_definition
+  script:
+  - apt-get update -qq && apt-get install -y unzip bzip2
+  - go version
+  - make test
 
-test:
-  script: 
-    - apt-get update -qq && apt-get install -y unzip bzip2
-    - make test
+test:go1.5.4:
+  <<: *test_definition
+  image: golang:1.5.4
 
+test:go1.6.3:
+  <<: *test_definition
+  image: golang:1.6.3
+
+test:go1.7.1:
+  <<: *test_definition
+  image: golang:1.7.1

@@ -28,7 +28,7 @@ func ServiceUnavailable(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func TooManyRequests(w http.ResponseWriter, r *http.Request, err error) {
-	http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+	http.Error(w, "Too Many Requests", 429) // http.StatusTooManyRequests was added in go1.6
 	captureRavenError(r, err)
 	printError(r, err)
 }

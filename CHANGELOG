@@ -2,6 +2,11 @@
 
 Formerly known as 'gitlab-git-http-server'.
 
+v0.8.4
+
+Fix Go 1.5 compatibility broken in 0.8.3. Update CI configuration so
+that tests run on Go 1.5, 1.6 and 1.7 (was only 1.6 before).
+
 v0.8.3
 
 Add rate-limiting feature for /api requests (disabled by default).
