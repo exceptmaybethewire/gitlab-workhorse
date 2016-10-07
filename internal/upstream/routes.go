@@ -71,7 +71,7 @@ func (u *Upstream) configureRoutes() {
 		route{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
 
 		route{"", regexp.MustCompile(projectPattern + `deployments/[0-9]+/terminal_websocket\z`), NotFoundUnless(u.WebsocketTerminalEnabled,
-			terminal.Handler,
+			terminal.Handler(api),
 		)},
 
 		// Explicitly proxy API requests

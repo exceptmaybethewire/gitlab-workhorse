@@ -21,11 +21,18 @@ import (
 	"net/http"
 	"os/exec"
 
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
+
 	"github.com/kr/pty"
 	"golang.org/x/net/websocket"
 )
 
-var Handler = http.HandlerFunc(handleFunc)
+func Handler(myAPI *api.API) http.Handler {
+	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
+		// TODO: get namespace/pod/container from the API response
+		handleFunc(w, r)
+	}, "authorize")
+}
 
 // GET /shell handler
 // Launches /bin/bash and starts serving it via the terminal
