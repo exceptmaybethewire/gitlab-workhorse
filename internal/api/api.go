@@ -58,7 +58,9 @@ type Response struct {
 	// Archive is the path where the artifacts archive is stored
 	Archive string `json:"archive"`
 	// Entry is a filename inside the archive point to file that needs to be extracted
-	Entry string `json:"entry"`
+	Entry            string `json:"entry"`
+	OpenshiftApp     string `json:"openshift_app"`
+	OpenshiftProject string `json:"openshift_project"`
 }
 
 // singleJoiningSlash is taken from reverseproxy.go:NewSingleHostReverseProxy
