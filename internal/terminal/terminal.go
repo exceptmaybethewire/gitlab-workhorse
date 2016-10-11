@@ -34,21 +34,30 @@ import (
 type session struct {
 	OpenshiftApp     string
 	OpenshiftProject string
+	OpenshiftServer  string
+	OpenshiftToken   string
 }
 
 func Handler(myAPI *api.API) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		if a.OpenshiftApp == "" {
-			helper.Fail500(w, r, errors.New("OpenshiftApp missing from API response"))
-			return
-		}
-		if a.OpenshiftProject == "" {
-			helper.Fail500(w, r, errors.New("OpenshiftProject missing from API response"))
-			return
+		s := session{}
+		for _, item := range []struct {
+			name, value string
+			dest        *string
+		}{
+			{"OpenshiftApp", a.OpenshiftApp, &s.OpenshiftApp},
+			{"OpenshiftProject", a.OpenshiftProject, &s.OpenshiftProject},
+			{"OpenshiftServer", a.OpenshiftServer, &s.OpenshiftServer},
+			{"OpenshiftToken", a.OpenshiftToken, &s.OpenshiftToken},
+		} {
+			if item.value == "" {
+				helper.Fail500(w, r, fmt.Errorf("%s missing from API response", item.name))
+				return
+			}
+			*item.dest = item.value
 		}
 
-		s := &session{OpenshiftApp: a.OpenshiftApp, OpenshiftProject: a.OpenshiftProject}
-		s.handleFunc(w, r)
+		(&s).handleFunc(w, r)
 	}, "authorize")
 }
 
@@ -62,10 +71,10 @@ func (s *session) handleFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *session) wsHandler(ws *websocket.Conn) {
-	pod, err := getPod(s.OpenshiftProject, s.OpenshiftApp)
+	pod, err := s.getPod()
 	if err != nil {
 		fmt.Fprint(ws, "error: container not found")
-		helper.LogError(nil, fmt.Errorf("terminal wsHandler: %v"))
+		helper.LogError(nil, fmt.Errorf("terminal wsHandler get pod: %v", err))
 		return
 	}
 
@@ -80,7 +89,8 @@ func (s *session) wsHandler(ws *websocket.Conn) {
 	// starts new command in a newly allocated terminal:
 	// Try /bin/bash, fall back to /bin/sh. The container may not have Bash.
 	shell := "[ -x /bin/bash ] && exec /bin/bash -l -i; exec /bin/sh"
-	cmd := exec.Command("kubectl", "exec", "-n"+s.OpenshiftProject, pod, "-t", "-i", "--", "/bin/sh", "-c", shell)
+	args := s.kubectl("exec", pod, "-t", "-i", "--", "/bin/sh", "-c", shell)
+	cmd := exec.Command(args[0], args[1:]...)
 
 	tty, err := pty.Start(cmd)
 	if err != nil {
@@ -128,9 +138,20 @@ func (s *session) wsHandler(ws *websocket.Conn) {
 	}
 }
 
-func getPod(namespace, appLabel string) (string, error) {
-	cmd := exec.Command("kubectl", "get", "pod", "-n"+namespace, "-oname", "-lapp="+appLabel)
-	output, err := cmd.Output()
+func (s *session) kubectl(args ...string) []string {
+	// TODO this is INSECURE because it leaks the token via the process status line
+	kubectlBase := []string{
+		"kubectl",
+		"--server=" + s.OpenshiftServer,
+		"--token=" + s.OpenshiftToken,
+		"-n" + s.OpenshiftProject,
+	}
+	return append(kubectlBase, args...)
+}
+
+func (s *session) getPod() (string, error) {
+	args := s.kubectl("get", "pod", "-oname", "-lapp="+s.OpenshiftApp)
+	output, err := exec.Command(args[0], args[1:]...).Output()
 	if err != nil {
 		return "", err
 	}

@@ -61,6 +61,8 @@ type Response struct {
 	Entry            string `json:"entry"`
 	OpenshiftApp     string `json:"openshift_app"`
 	OpenshiftProject string `json:"openshift_project"`
+	OpenshiftServer  string `json:"openshift_server"`
+	OpenshiftToken   string `json:"openshift_token"`
 }
 
 // singleJoiningSlash is taken from reverseproxy.go:NewSingleHostReverseProxy
