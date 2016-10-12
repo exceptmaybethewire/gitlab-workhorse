@@ -142,9 +142,10 @@ func (s *session) kubectl(args ...string) []string {
 	// TODO this is INSECURE because it leaks the token via the process status line
 	kubectlBase := []string{
 		"kubectl",
+		"--insecure-skip-tls-verify",
 		"--server=" + s.OpenshiftServer,
 		"--token=" + s.OpenshiftToken,
-		"-n" + s.OpenshiftProject,
+		"--namespace=" + s.OpenshiftProject,
 	}
 	return append(kubectlBase, args...)
 }
