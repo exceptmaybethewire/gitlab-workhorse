@@ -26,7 +26,7 @@ func contentEncodingHandler(h http.Handler) http.Handler {
 		}
 
 		if err != nil {
-			helper.Fail500(w, fmt.Errorf("contentEncodingHandler: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("contentEncodingHandler: %v", err))
 			return
 		}
 		defer body.Close()

@@ -41,7 +41,10 @@ func (a *testFormProcessor) ProcessField(formName string, writer *multipart.Writ
 
 func TestUploadTempPathRequirement(t *testing.T) {
 	response := httptest.NewRecorder()
-	request := &http.Request{}
+	request, err := http.NewRequest("", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	HandleFileUploads(response, request, nilHandler, "", nil)
 	testhelper.AssertResponseCode(t, response, 500)
 }

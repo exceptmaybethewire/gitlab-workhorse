@@ -2,6 +2,31 @@
 
 Formerly known as 'gitlab-git-http-server'.
 
+v0.8.5
+
+Simplify revspec for 'git format-patch'.
+
+v0.8.4
+
+Fix Go 1.5 compatibility broken in 0.8.3. Update CI configuration so
+that tests run on Go 1.5, 1.6 and 1.7 (was only 1.6 before).
+
+v0.8.3
+
+Add rate-limiting feature for /api requests (disabled by default).
+Suppress non-zero exit code error from git-upload-pack during shallow
+Git clone (only affects logging and Sentry). Don't treat EEXIST as an
+error during git archive finalization.
+
+v0.8.2
+
+Recognize more archive formats in git.SendArchive. Make 502 errors
+(failed proxy requests to Unicorn) easier to recognize in Sentry.
+
+v0.8.1
+
+Add Sentry (raven-go) for remote error tracking.
+
 v0.8.0
 
 Add JWT signed communication between gitlab-workhorse and gitlab-rails.

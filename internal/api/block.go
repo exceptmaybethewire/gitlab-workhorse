@@ -11,7 +11,7 @@ import (
 // leaking to the end user
 func Block(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rw := &blocker{rw: w}
+		rw := &blocker{rw: w, r: r}
 		defer rw.Flush()
 		h.ServeHTTP(rw, r)
 	})
@@ -19,6 +19,7 @@ func Block(h http.Handler) http.Handler {
 
 type blocker struct {
 	rw       http.ResponseWriter
+	r        *http.Request
 	hijacked bool
 	status   int
 }
@@ -47,7 +48,7 @@ func (b *blocker) WriteHeader(status int) {
 		b.status = 500
 		b.Header().Del("Content-Length")
 		b.hijacked = true
-		helper.Fail500(b.rw, fmt.Errorf("api.blocker: forbidden content-type: %q", ResponseContentType))
+		helper.Fail500(b.rw, b.r, fmt.Errorf("api.blocker: forbidden content-type: %q", ResponseContentType))
 		return
 	}
 

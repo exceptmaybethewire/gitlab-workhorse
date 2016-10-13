@@ -10,13 +10,35 @@ import (
 	"syscall"
 )
 
-func Fail500(w http.ResponseWriter, err error) {
+func Fail500(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Internal server error", 500)
-	LogError(err)
+	captureRavenError(r, err)
+	printError(r, err)
 }
 
-func LogError(err error) {
-	log.Printf("error: %v", err)
+func LogError(r *http.Request, err error) {
+	captureRavenError(r, err)
+	printError(r, err)
+}
+
+func ServiceUnavailable(w http.ResponseWriter, r *http.Request, err error) {
+	http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+	captureRavenError(r, err)
+	printError(r, err)
+}
+
+func TooManyRequests(w http.ResponseWriter, r *http.Request, err error) {
+	http.Error(w, "Too Many Requests", 429) // http.StatusTooManyRequests was added in go1.6
+	captureRavenError(r, err)
+	printError(r, err)
+}
+
+func printError(r *http.Request, err error) {
+	if r != nil {
+		log.Printf("error: %s %q: %v", r.Method, r.RequestURI, err)
+	} else {
+		log.Printf("error: %v", err)
+	}
 }
 
 func SetNoCacheHeaders(header http.Header) {

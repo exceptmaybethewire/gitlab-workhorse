@@ -577,35 +577,68 @@ func TestArtifactsUpload(t *testing.T) {
 	}
 }
 
+var sendDataHeader = "Gitlab-Workhorse-Send-Data"
+
+func sendDataResponder(command string, literalJSON string) *httptest.Server {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		data := base64.URLEncoding.EncodeToString([]byte(literalJSON))
+		w.Header().Set(sendDataHeader, fmt.Sprintf("%s:%s", command, data))
+
+		// This should never be returned
+		if _, err := fmt.Fprintf(w, "gibberish"); err != nil {
+			panic(err)
+		}
+
+		return
+	}
+
+	return testhelper.TestServerWithHandler(regexp.MustCompile(`.`), handler)
+}
+
+func doSendDataRequest(path string, command, literalJSON string) (*http.Response, []byte, error) {
+	ts := sendDataResponder(command, literalJSON)
+	defer ts.Close()
+
+	ws := startWorkhorseServer(ts.URL)
+	defer ws.Close()
+
+	resp, err := http.Get(ws.URL + path)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return resp, nil, err
+	}
+
+	headerValue := resp.Header.Get(sendDataHeader)
+	if headerValue != "" {
+		return resp, bodyData, fmt.Errorf("%s header should not be present, but has value %q", sendDataHeader, headerValue)
+	}
+
+	return resp, bodyData, nil
+}
+
 func TestArtifactsGetSingleFile(t *testing.T) {
 	// We manually created this zip file in the gitlab-workhorse Git repository
 	archivePath := `testdata/artifacts-archive.zip`
 	fileName := "myfile"
 	fileContents := "MY FILE"
 	resourcePath := `/namespace/project/builds/123/artifacts/file/` + fileName
-	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`\A`+resourcePath+`\z`), func(w http.ResponseWriter, r *http.Request) {
-		encodedFilename := base64.StdEncoding.EncodeToString([]byte(fileName))
-		jsonParams := fmt.Sprintf(`{"Archive":"%s","Entry":"%s"}`, archivePath, encodedFilename)
-		data := base64.URLEncoding.EncodeToString([]byte(jsonParams))
-		w.Header().Set("Gitlab-Workhorse-Send-Data", "artifacts-entry:"+data)
-		return
-	})
-	defer ts.Close()
-	ws := startWorkhorseServer(ts.URL)
-	defer ws.Close()
+	encodedFilename := base64.StdEncoding.EncodeToString([]byte(fileName))
+	jsonParams := fmt.Sprintf(`{"Archive":"%s","Entry":"%s"}`, archivePath, encodedFilename)
 
-	resp, err := http.Get(ws.URL + resourcePath)
+	resp, body, err := doSendDataRequest(resourcePath, "artifacts-entry", jsonParams)
 	if err != nil {
 		t.Error(err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("GET %q: expected 200, got %d", resourcePath, resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	if string(body) != fileContents {
 		t.Fatalf("Expected file contents %q, got %q", fileContents, body)
 	}
@@ -614,41 +647,25 @@ func TestArtifactsGetSingleFile(t *testing.T) {
 func TestGetGitBlob(t *testing.T) {
 	blobId := "50b27c6518be44c42c4d87966ae2481ce895624c" // the LICENSE file in the test repository
 	blobLength := 1075
-	headerKey := http.CanonicalHeaderKey("Gitlab-Workhorse-Send-Data")
-	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, r *http.Request) {
-		responseJSON := fmt.Sprintf(`{"RepoPath":"%s","BlobId":"%s"}`, path.Join(testRepoRoot, testRepo), blobId)
-		encodedJSON := base64.URLEncoding.EncodeToString([]byte(responseJSON))
-		w.Header().Set(headerKey, "git-blob:"+encodedJSON)
-		if _, err := fmt.Fprintf(w, "GNU General Public License"); err != nil {
-			t.Fatal(err)
-		}
-		return
-	})
-	defer ts.Close()
-	ws := startWorkhorseServer(ts.URL)
-	defer ws.Close()
-	resourcePath := "/something"
-	resp, err := http.Get(ws.URL + resourcePath)
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","BlobId":"%s"}`, path.Join(testRepoRoot, testRepo), blobId)
+
+	resp, body, err := doSendDataRequest("/something", "git-blob", jsonParams)
 	if err != nil {
 		t.Error(err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("GET %q: expected 200, got %d", resourcePath, resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
 	}
-	if len(resp.Header[headerKey]) != 0 {
-		t.Fatalf("Unexpected response header: %s: %q", headerKey, resp.Header.Get(headerKey))
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	if len(body) != blobLength {
 		t.Fatalf("Expected body of %d bytes, got %d", blobLength, len(body))
 	}
+
 	if cl := resp.Header.Get("Content-Length"); cl != fmt.Sprintf("%d", blobLength) {
 		t.Fatalf("Expected Content-Length %v, got %q", blobLength, cl)
 	}
+
 	if !strings.HasPrefix(string(body), "The MIT License (MIT)") {
 		t.Fatalf("Expected MIT license, got %q", body)
 	}
@@ -657,35 +674,15 @@ func TestGetGitBlob(t *testing.T) {
 func TestGetGitDiff(t *testing.T) {
 	fromSha := "be93687618e4b132087f430a4d8fc3a609c9b77c"
 	toSha := "54fcc214b94e78d7a41a9a8fe6d87a5e59500e51"
-	headerKey := http.CanonicalHeaderKey("Gitlab-Workhorse-Send-Data")
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","ShaFrom":"%s","ShaTo":"%s"}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
 
-	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, r *http.Request) {
-		responseJSON := fmt.Sprintf(`{"RepoPath":"%s","ShaFrom":"%s","ShaTo":"%s"}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
-		encodedJSON := base64.URLEncoding.EncodeToString([]byte(responseJSON))
-		w.Header().Set(headerKey, "git-diff:"+encodedJSON)
-		return
-	})
-	defer ts.Close()
-
-	ws := startWorkhorseServer(ts.URL)
-	defer ws.Close()
-
-	resourcePath := "/something"
-	resp, err := http.Get(ws.URL + resourcePath)
+	resp, body, err := doSendDataRequest("/something", "git-diff", jsonParams)
 	if err != nil {
 		t.Error(err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("GET %q: expected 200, got %d", resourcePath, resp.StatusCode)
-	}
-	if len(resp.Header[headerKey]) != 0 {
-		t.Fatalf("Unexpected response header: %s: %q", headerKey, resp.Header.Get(headerKey))
-	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
 	}
 
 	if !strings.HasPrefix(string(body), "diff --git a/README b/README") {
@@ -699,52 +696,22 @@ func TestGetGitDiff(t *testing.T) {
 }
 
 func TestGetGitPatch(t *testing.T) {
-	fromSha := "be93687618e4b132087f430a4d8fc3a609c9b77c"
-	toSha := "54fcc214b94e78d7a41a9a8fe6d87a5e59500e51"
-	headerKey := http.CanonicalHeaderKey("Gitlab-Workhorse-Send-Data")
+	// HEAD of master branch against HEAD of fix branch
+	fromSha := "6907208d755b60ebeacb2e9dfea74c92c3449a1f"
+	toSha := "48f0be4bd10c1decee6fae52f9ae6d10f77b60f4"
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","ShaFrom":"%s","ShaTo":"%s"}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
 
-	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, r *http.Request) {
-		responseJSON := fmt.Sprintf(`{"RepoPath":"%s","ShaFrom":"%s","ShaTo":"%s"}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
-		encodedJSON := base64.URLEncoding.EncodeToString([]byte(responseJSON))
-		w.Header().Set(headerKey, "git-format-patch:"+encodedJSON)
-		return
-	})
-	defer ts.Close()
-
-	ws := startWorkhorseServer(ts.URL)
-	defer ws.Close()
-
-	resourcePath := "/something"
-	resp, err := http.Get(ws.URL + resourcePath)
+	resp, body, err := doSendDataRequest("/something", "git-format-patch", jsonParams)
 	if err != nil {
 		t.Error(err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("GET %q: expected 200, got %d", resourcePath, resp.StatusCode)
-	}
-	if len(resp.Header[headerKey]) != 0 {
-		t.Fatalf("Unexpected response header: %s: %q", headerKey, resp.Header.Get(headerKey))
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !strings.HasPrefix(string(body), "From 54fcc214b94e78d7a41a9a8fe6d87a5e59500e51 Mon Sep 17 00:00:00 2001") {
-		t.Fatalf("Expected: From 54fcc214b94e78d7a41a9a8fe6d87a5e59500e51 Mon Sep 17 00:00:00 2001, got: %v", body)
-	}
-
-	// The contents of the last line of the patch depend on the version of
-	// Git used during the test run. Ignore that data and look at the line
-	// that should terminate the diff.
-	lastPatchIndex := 442
-	endOfPatch := string(body[lastPatchIndex-5 : lastPatchIndex])
-	if endOfPatch != "\n-- \n" {
-		t.Fatalf("Expected end of patch at %d, found %q", lastPatchIndex, endOfPatch)
-	}
+	// Only the two commits on the fix branch should be included
+	testhelper.AssertPatchSeries(t, body, "12d65c8dd2b2676fa3ac47d955accc085a37a9c1", toSha)
 }
 
 func TestApiContentTypeBlock(t *testing.T) {
@@ -868,16 +835,14 @@ func archiveOKServer(t *testing.T, archiveName string) *httptest.Server {
 }
 
 func startWorkhorseServer(authBackend string) *httptest.Server {
-	u := upstream.NewUpstream(
-		helper.URLMustParse(authBackend),
-		"",
-		"123",
-		testhelper.SecretPath(),
-		testDocumentRoot,
-		false,
-		0,
-		1024,
-	)
+	config := upstream.Config{
+		Backend:      helper.URLMustParse(authBackend),
+		Version:      "123",
+		SecretPath:   testhelper.SecretPath(),
+		DocumentRoot: testDocumentRoot,
+	}
+
+	u := upstream.NewUpstream(config)
 	return httptest.NewServer(u)
 }
 

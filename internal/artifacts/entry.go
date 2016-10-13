@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,14 +27,14 @@ var SendEntry = &entry{"artifacts-entry:"}
 func (e *entry) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	var params entryParams
 	if err := e.Unpack(&params, sendData); err != nil {
-		helper.Fail500(w, fmt.Errorf("SendEntry: unpack sendData: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendEntry: unpack sendData: %v", err))
 		return
 	}
 
 	log.Printf("SendEntry: sending %q from %q for %q", params.Entry, params.Archive, r.URL.Path)
 
 	if params.Archive == "" || params.Entry == "" {
-		helper.Fail500(w, errors.New("SendEntry: Archive or Entry is empty"))
+		helper.Fail500(w, r, fmt.Errorf("SendEntry: Archive or Entry is empty"))
 		return
 	}
 
@@ -44,7 +43,7 @@ func (e *entry) Inject(w http.ResponseWriter, r *http.Request, sendData string) 
 	if os.IsNotExist(err) {
 		http.NotFound(w, r)
 	} else if err != nil {
-		helper.Fail500(w, fmt.Errorf("SendEntry: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendEntry: %v", err))
 	}
 }
 

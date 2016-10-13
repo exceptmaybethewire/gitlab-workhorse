@@ -1,7 +1,6 @@
 package artifacts
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
@@ -75,7 +74,7 @@ func (a *artifactsUploadProcessor) Cleanup() {
 func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
 		if a.TempPath == "" {
-			helper.Fail500(w, errors.New("UploadArtifacts: TempPath is empty"))
+			helper.Fail500(w, r, fmt.Errorf("UploadArtifacts: TempPath is empty"))
 			return
 		}
 

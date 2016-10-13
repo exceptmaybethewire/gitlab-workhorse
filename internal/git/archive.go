@@ -34,23 +34,15 @@ var SendArchive = &archive{"git-archive:"}
 func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	var params archiveParams
 	if err := a.Unpack(&params, sendData); err != nil {
-		helper.Fail500(w, fmt.Errorf("SendArchive: unpack sendData: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendArchive: unpack sendData: %v", err))
 		return
 	}
 
 	var format string
 	urlPath := r.URL.Path
-	switch filepath.Base(urlPath) {
-	case "archive.zip":
-		format = "zip"
-	case "archive.tar":
-		format = "tar"
-	case "archive", "archive.tar.gz":
-		format = "tar.gz"
-	case "archive.tar.bz2":
-		format = "tar.bz2"
-	default:
-		helper.Fail500(w, fmt.Errorf("handleGetArchive: invalid format: %s", urlPath))
+	format, ok := parseBasename(filepath.Base(urlPath))
+	if !ok {
+		helper.Fail500(w, r, fmt.Errorf("SendArchive: invalid format: %s", urlPath))
 		return
 	}
 
@@ -73,7 +65,7 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 	// to finalize the cached archive.
 	tempFile, err := prepareArchiveTempfile(path.Dir(params.ArchivePath), archiveFilename)
 	if err != nil {
-		helper.Fail500(w, fmt.Errorf("handleGetArchive: create tempfile: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendArchive: create tempfile: %v", err))
 		return
 	}
 	defer tempFile.Close()
@@ -84,12 +76,12 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 	archiveCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "archive", "--format="+archiveFormat, "--prefix="+params.ArchivePrefix+"/", params.CommitId)
 	archiveStdout, err := archiveCmd.StdoutPipe()
 	if err != nil {
-		helper.Fail500(w, fmt.Errorf("handleGetArchive: archive stdout: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendArchive: archive stdout: %v", err))
 		return
 	}
 	defer archiveStdout.Close()
 	if err := archiveCmd.Start(); err != nil {
-		helper.Fail500(w, fmt.Errorf("handleGetArchive: start %v: %v", archiveCmd.Args, err))
+		helper.Fail500(w, r, fmt.Errorf("SendArchive: start %v: %v", archiveCmd.Args, err))
 		return
 	}
 	defer helper.CleanUpProcessGroup(archiveCmd) // Ensure brute force subprocess clean-up
@@ -103,13 +95,13 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 
 		stdout, err = compressCmd.StdoutPipe()
 		if err != nil {
-			helper.Fail500(w, fmt.Errorf("handleGetArchive: compress stdout: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("SendArchive: compress stdout: %v", err))
 			return
 		}
 		defer stdout.Close()
 
 		if err := compressCmd.Start(); err != nil {
-			helper.Fail500(w, fmt.Errorf("handleGetArchive: start %v: %v", compressCmd.Args, err))
+			helper.Fail500(w, r, fmt.Errorf("SendArchive: start %v: %v", compressCmd.Args, err))
 			return
 		}
 		defer helper.CleanUpProcessGroup(compressCmd)
@@ -124,22 +116,22 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 	setArchiveHeaders(w, format, archiveFilename)
 	w.WriteHeader(200) // Don't bother with HTTP 500 from this point on, just return
 	if _, err := io.Copy(w, archiveReader); err != nil {
-		helper.LogError(fmt.Errorf("handleGetArchive: copy 'git archive' output: %v", err))
+		helper.LogError(r, &copyError{fmt.Errorf("SendArchive: copy 'git archive' output: %v", err)})
 		return
 	}
 	if err := archiveCmd.Wait(); err != nil {
-		helper.LogError(fmt.Errorf("handleGetArchive: archiveCmd: %v", err))
+		helper.LogError(r, fmt.Errorf("SendArchive: archiveCmd: %v", err))
 		return
 	}
 	if compressCmd != nil {
 		if err := compressCmd.Wait(); err != nil {
-			helper.LogError(fmt.Errorf("handleGetArchive: compressCmd: %v", err))
+			helper.LogError(r, fmt.Errorf("SendArchive: compressCmd: %v", err))
 			return
 		}
 	}
 
 	if err := finalizeCachedArchive(tempFile, params.ArchivePath); err != nil {
-		helper.LogError(fmt.Errorf("handleGetArchive: finalize cached archive: %v", err))
+		helper.LogError(r, fmt.Errorf("SendArchive: finalize cached archive: %v", err))
 		return
 	}
 }
@@ -181,5 +173,28 @@ func finalizeCachedArchive(tempFile *os.File, archivePath string) error {
 	if err := tempFile.Close(); err != nil {
 		return err
 	}
-	return os.Link(tempFile.Name(), archivePath)
+	if err := os.Link(tempFile.Name(), archivePath); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func parseBasename(basename string) (string, bool) {
+	var format string
+
+	switch basename {
+	case "archive.zip":
+		format = "zip"
+	case "archive.tar":
+		format = "tar"
+	case "archive", "archive.tar.gz", "archive.tgz", "archive.gz":
+		format = "tar.gz"
+	case "archive.tar.bz2", "archive.tbz", "archive.tbz2", "archive.tb2", "archive.bz2":
+		format = "tar.bz2"
+	default:
+		return "", false
+	}
+
+	return format, true
 }

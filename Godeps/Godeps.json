@@ -2,14 +2,20 @@
 	"ImportPath": "gitlab.com/gitlab-org/gitlab-workhorse",
 	"GoVersion": "go1.7",
 	"GodepVersion": "v74",
-	"Packages": [
-		"./..."
-	],
 	"Deps": [
+		{
+			"ImportPath": "github.com/certifi/gocertifi",
+			"Comment": "2016.08.31",
+			"Rev": "ec89d50f00d39494f5b3ec5cf2fe75c53467a937"
+		},
 		{
 			"ImportPath": "github.com/dgrijalva/jwt-go",
 			"Comment": "v3.0.0",
 			"Rev": "d2709f9f1f31ebcda9651b03077758c1f3a0018c"
+		},
+		{
+			"ImportPath": "github.com/getsentry/raven-go",
+			"Rev": "379f8d0a68ca237cf8893a1cdfd4f574125e2c51"
 		}
 	]
 }

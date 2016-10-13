@@ -24,6 +24,9 @@ var DefaultTransport = &http.Transport{
 	TLSHandshakeTimeout: 10 * time.Second,          // from http.DefaultTransport
 }
 
+// Custom error for pretty Sentry 'issues'
+type Error struct{ error }
+
 type RoundTripper struct {
 	Transport *http.Transport
 }
@@ -68,6 +71,7 @@ func mustParseAddress(address, scheme string) string {
 }
 
 func (t *RoundTripper) RoundTrip(r *http.Request) (res *http.Response, err error) {
+	start := time.Now()
 	res, err = t.Transport.RoundTrip(r)
 
 	// httputil.ReverseProxy translates all errors from this
@@ -77,7 +81,10 @@ func (t *RoundTripper) RoundTrip(r *http.Request) (res *http.Response, err error
 	// instead of 500s we catch the RoundTrip error here and inject a
 	// 502 response.
 	if err != nil {
-		helper.LogError(fmt.Errorf("proxyRoundTripper: %s %q failed with: %q", r.Method, r.RequestURI, err))
+		helper.LogError(
+			r,
+			&Error{fmt.Errorf("badgateway: failed after %.3fs: %v", time.Since(start).Seconds(), err)},
+		)
 
 		res = &http.Response{
 			StatusCode: http.StatusBadGateway,

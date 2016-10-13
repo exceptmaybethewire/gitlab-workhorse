@@ -1,6 +1,8 @@
 package testhelper
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -12,11 +14,41 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 )
 
 func SecretPath() string {
 	return path.Join(RootDir(), "testdata/test-secret")
+}
+
+var extractPatchSeriesMatcher = regexp.MustCompile(`^From (\w+)`)
+
+// AssertPatchSeries takes a `git format-patch` blob, extracts the From xxxxx
+// lines and compares the SHAs to expected list.
+func AssertPatchSeries(t *testing.T, blob []byte, expected ...string) {
+	var actual []string
+	footer := make([]string, 3)
+
+	scanner := bufio.NewScanner(bytes.NewReader(blob))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if matches := extractPatchSeriesMatcher.FindStringSubmatch(line); len(matches) == 2 {
+			actual = append(actual, matches[1])
+		}
+		footer = []string{footer[1], footer[2], line}
+	}
+
+	if strings.Join(actual, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("Patch series differs. Expected: %v. Got: %v", expected, actual)
+	}
+
+	// Check the last returned patch is complete
+	// Don't assert on the final line, it is a git version
+	if footer[0] != "-- " {
+		t.Fatalf("Expected end of patch, found: \n\t%q", strings.Join(footer, "\n\t"))
+	}
 }
 
 func AssertResponseCode(t *testing.T, response *httptest.ResponseRecorder, expectedCode int) {

@@ -28,7 +28,7 @@ func (s *Static) ServeExisting(prefix urlprefix.Prefix, cache CacheMode, notFoun
 
 		// The filepath.Join does Clean traversing directories up
 		if !strings.HasPrefix(file, s.DocumentRoot) {
-			helper.Fail500(w, &os.PathError{
+			helper.Fail500(w, r, &os.PathError{
 				Op:   "open",
 				Path: file,
 				Err:  os.ErrInvalid,

@@ -9,6 +9,7 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/lfs"
 	proxypkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/proxy"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/queueing"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/requestbuffer"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/sendfile"
@@ -56,6 +57,7 @@ func (u *Upstream) configureRoutes() {
 		git.SendPatch,
 		artifacts.SendEntry,
 	)
+	apiProxyQueue := queueing.QueueRequests(proxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout)
 
 	if u.RequestBufferSize > 0 {
 		proxy = requestbuffer.New(u.RequestBufferSize, proxy)
@@ -72,8 +74,8 @@ func (u *Upstream) configureRoutes() {
 		route{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
 
 		// Explicitly proxy API requests
-		route{"", regexp.MustCompile(apiPattern), proxy},
-		route{"", regexp.MustCompile(ciAPIPattern), proxy},
+		route{"", regexp.MustCompile(apiPattern), apiProxyQueue},
+		route{"", regexp.MustCompile(ciAPIPattern), apiProxyQueue},
 
 		// Serve assets
 		route{"", regexp.MustCompile(`^/assets/`),

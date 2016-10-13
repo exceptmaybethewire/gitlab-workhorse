@@ -147,13 +147,13 @@ func (api *API) PreAuthorizeHandler(h HandleFunc, suffix string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authReq, err := api.newRequest(r, nil, suffix)
 		if err != nil {
-			helper.Fail500(w, fmt.Errorf("preAuthorizeHandler: newUpstreamRequest: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("preAuthorizeHandler newUpstreamRequest: %v", err))
 			return
 		}
 
 		authResponse, err := api.Client.Do(authReq)
 		if err != nil {
-			helper.Fail500(w, fmt.Errorf("preAuthorizeHandler: do %v: %v", authReq.URL.Path, err))
+			helper.Fail500(w, r, fmt.Errorf("preAuthorizeHandler: do request: %v", err))
 			return
 		}
 		defer authResponse.Body.Close()
@@ -173,7 +173,7 @@ func (api *API) PreAuthorizeHandler(h HandleFunc, suffix string) http.Handler {
 		}
 
 		if contentType := authResponse.Header.Get("Content-Type"); contentType != ResponseContentType {
-			helper.Fail500(w, fmt.Errorf("preAuthorizeHandler: API responded with wrong content type: %v", contentType))
+			helper.Fail500(w, r, fmt.Errorf("preAuthorizeHandler: API responded with wrong content type: %v", contentType))
 			return
 		}
 
@@ -182,7 +182,7 @@ func (api *API) PreAuthorizeHandler(h HandleFunc, suffix string) http.Handler {
 		// request metadata. We must extract this information from the auth
 		// response body.
 		if err := json.NewDecoder(authResponse.Body).Decode(a); err != nil {
-			helper.Fail500(w, fmt.Errorf("preAuthorizeHandler: decode authorization response: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("preAuthorizeHandler: decode authorization response: %v", err))
 			return
 		}
 		// Don't hog a TCP connection in CLOSE_WAIT, we can already close it now

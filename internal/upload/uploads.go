@@ -104,7 +104,7 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, te
 
 func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, tempPath string, filter MultipartFormProcessor) {
 	if tempPath == "" {
-		helper.Fail500(w, fmt.Errorf("handleFileUploads: tempPath empty"))
+		helper.Fail500(w, r, fmt.Errorf("handleFileUploads: tempPath empty"))
 		return
 	}
 
@@ -118,7 +118,7 @@ func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, t
 		if err == http.ErrNotMultipart {
 			h.ServeHTTP(w, r)
 		} else {
-			helper.Fail500(w, fmt.Errorf("handleFileUploads: extract files from multipart: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("handleFileUploads: extract files from multipart: %v", err))
 		}
 		return
 	}

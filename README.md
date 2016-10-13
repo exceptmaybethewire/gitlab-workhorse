@@ -13,6 +13,12 @@ gitlab-workhorse'][brief-history-blog].
   gitlab-workhorse [OPTIONS]
 
 Options:
+  -apiLimit uint
+        Number of API requests allowed at single time
+  -apiQueueDuration duration
+        Maximum queueing duration of requests (default 30s)
+  -apiQueueLimit uint
+        Number of API requests allowed to be queued
   -authBackend string
     	Authentication/authorization backend (default "http://localhost:8080")
   -authSocket string
@@ -75,6 +81,24 @@ make install PREFIX=/foo
 
 On some operating systems, such as FreeBSD, you may have to use
 `gmake` instead of `make`.
+
+## Error tracking
+
+GitLab-Workhorse supports remote error tracking with
+[Sentry](https://sentry.io). To enable this feature set the
+GITLAB_WORKHORSE_SENTRY_DSN environment variable.
+
+Omnibus (`/etc/gitlab/gitlab.rb`):
+
+```
+gitlab_workhorse['env'] = {'GITLAB_WORKHORSE_SENTRY_DSN' => 'https://foobar'}
+```
+
+Source installations (`/etc/default/gitlab`):
+
+```
+export GITLAB_WORKHORSE_SENTRY_DSN='https://foobar'
+```
 
 ## Tests
 

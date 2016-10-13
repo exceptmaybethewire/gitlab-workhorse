@@ -33,7 +33,7 @@ func New(size uint, h http.Handler) http.Handler {
 func (b *requestBuffer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := b.buffer(r.Body)
 	if err != nil {
-		helper.Fail500(w, fmt.Errorf("buffer.Requests: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("buffer.Requests: %v", err))
 		return
 	}
 	defer body.Close()
