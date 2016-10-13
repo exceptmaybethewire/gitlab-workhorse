@@ -33,7 +33,7 @@ func New(size uint, h http.Handler) http.Handler {
 func (b *requestBuffer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := b.buffer(r.Body)
 	if err != nil {
-		helper.Fail500(w, r, fmt.Errorf("buffer.Requests: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("requestBuffer.buffer: %v", err))
 		return
 	}
 	defer body.Close()
@@ -79,20 +79,18 @@ func staticBuffer(body io.Reader) ([]byte, error) {
 
 func (b *requestBuffer) dynamicBufferWithPrefix(body io.Reader, prefix []byte) ([]byte, bool, error) {
 	smallBuffer := make([]byte, b.dynamicBufferSize)
-	for i := range prefix {
-		smallBuffer[i] = prefix[i]
-	}
 
+	copy(smallBuffer, prefix)
 	buffered := len(prefix)
-	for {
-		n, err := body.Read(smallBuffer[buffered:])
-		buffered += n
-		if err == io.EOF || buffered == len(smallBuffer) {
-			break
-		} else if err != nil {
-			return nil, false, err
-		}
+
+	n, err := io.Copy(
+		bytes.NewBuffer(smallBuffer[buffered:]),
+		io.LimitReader(body, int64(len(smallBuffer)-buffered)),
+	)
+	if err != nil && err != io.EOF {
+		return nil, false, err
 	}
+	buffered += int(n) // assume len(smallBuffer) fits in an int
 
 	return smallBuffer[:buffered], buffered < len(smallBuffer), nil
 }
