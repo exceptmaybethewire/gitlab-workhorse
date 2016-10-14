@@ -31,7 +31,7 @@ type Config struct {
 	APILimit            uint
 	APIQueueLimit       uint
 	APIQueueTimeout     time.Duration
-	RequestBufferSize   uint
+	RequestBufferSize   int
 }
 
 type Upstream struct {

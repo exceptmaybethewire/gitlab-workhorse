@@ -45,7 +45,7 @@ var secretPath = flag.String("secretPath", "./.gitlab_workhorse_secret", "File w
 var apiLimit = flag.Uint("apiLimit", 0, "Number of API requests allowed at single time")
 var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowed to be queued")
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
-var requestBufferSize = flag.Uint("requestBufferSize", 0, "Buffer size for request body buffers (0 means no buffering)")
+var requestBufferSize = flag.Int("requestBufferSize", 0, "Buffer size for request body buffers (0 means no buffering)")
 
 func main() {
 	flag.Usage = func() {

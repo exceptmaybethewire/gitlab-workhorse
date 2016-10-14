@@ -22,15 +22,20 @@ func (_ *emptyReadCloser) Close() error {
 }
 
 type requestBuffer struct {
-	dynamicBufferSize uint
+	dynamicBufferSize int
 	handler           http.Handler
 }
 
-func New(size uint, h http.Handler) http.Handler {
+func New(size int, h http.Handler) http.Handler {
 	return &requestBuffer{dynamicBufferSize: size, handler: h}
 }
 
 func (b *requestBuffer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		b.handler.ServeHTTP(w, r)
+		return
+	}
+
 	body, err := b.buffer(r.Body)
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("requestBuffer.buffer: %v", err))
@@ -47,55 +52,20 @@ func (b *requestBuffer) buffer(body io.ReadCloser) (io.ReadCloser, error) {
 		return &emptyReadCloser{}, nil
 	}
 
-	peekBuffer, err := staticBuffer(body)
+	buffer := bytes.NewBuffer(make([]byte, b.dynamicBufferSize))
+	_, err := io.Copy(buffer, io.LimitReader(body, int64(b.dynamicBufferSize)))
 	if err != nil {
 		return nil, err
 	}
-	if len(peekBuffer) == 0 {
-		return &emptyReadCloser{}, nil
+
+	if buffer.Len() < b.dynamicBufferSize {
+		return ioutil.NopCloser(buffer), nil
 	}
 
-	memoryBuffer, done, err := b.dynamicBufferWithPrefix(body, peekBuffer)
-	if err != nil {
-		return nil, err
-	}
-	if done {
-		return ioutil.NopCloser(bytes.NewReader(memoryBuffer)), nil
-	}
-
-	return fileBufferWithPrefix(body, memoryBuffer)
+	return fileBufferWithPrefix(body, buffer)
 }
 
-func staticBuffer(body io.Reader) ([]byte, error) {
-	peekArray := [1]byte{}
-	peekBuffer := peekArray[:]
-	peeked, err := body.Read(peekBuffer)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-
-	return peekBuffer[:peeked], nil
-}
-
-func (b *requestBuffer) dynamicBufferWithPrefix(body io.Reader, prefix []byte) ([]byte, bool, error) {
-	smallBuffer := make([]byte, b.dynamicBufferSize)
-
-	copy(smallBuffer, prefix)
-	buffered := len(prefix)
-
-	n, err := io.Copy(
-		bytes.NewBuffer(smallBuffer[buffered:]),
-		io.LimitReader(body, int64(len(smallBuffer)-buffered)),
-	)
-	if err != nil && err != io.EOF {
-		return nil, false, err
-	}
-	buffered += int(n) // assume len(smallBuffer) fits in an int
-
-	return smallBuffer[:buffered], buffered < len(smallBuffer), nil
-}
-
-func fileBufferWithPrefix(body io.Reader, prefix []byte) (io.ReadCloser, error) {
+func fileBufferWithPrefix(body io.Reader, prefix io.Reader) (io.ReadCloser, error) {
 	tempFile, err := ioutil.TempFile("", "gitlab-workhorse-request-body")
 	if err != nil {
 		return nil, err
@@ -105,7 +75,7 @@ func fileBufferWithPrefix(body io.Reader, prefix []byte) (io.ReadCloser, error) 
 		return nil, err
 	}
 
-	if n, err := io.Copy(tempFile, bytes.NewReader(prefix)); err != nil || n != int64(len(prefix)) {
+	if _, err := io.Copy(tempFile, prefix); err != nil {
 		return nil, err
 	}
 
