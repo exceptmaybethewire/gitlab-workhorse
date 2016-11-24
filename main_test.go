@@ -714,6 +714,26 @@ func TestGetGitPatch(t *testing.T) {
 	testhelper.AssertPatchSeries(t, body, "12d65c8dd2b2676fa3ac47d955accc085a37a9c1", toSha)
 }
 
+func TestGetGitCommit(t *testing.T) {
+	sha := "498214de67004b1da3d820901307bed2a68a8ef6"
+	repoPath := path.Join(testRepoRoot, testRepo)
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s"}`, repoPath, sha)
+
+	resp, body, err := doSendDataRequest("/something", "git-show-commit", jsonParams)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
+	}
+
+	prefix := "diff --git a/bar/branch-test.txt b/bar/branch-test.txt"
+	if !strings.HasPrefix(string(body), prefix) {
+		t.Fatalf("Expected: %v, got: %v", prefix, body)
+	}
+}
+
 func TestApiContentTypeBlock(t *testing.T) {
 	wrongResponse := `{"hello":"world"}`
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, _ *http.Request) {
