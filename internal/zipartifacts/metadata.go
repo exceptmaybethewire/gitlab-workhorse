@@ -87,7 +87,7 @@ func generateZipMetadata(output io.Writer, archive *zip.Reader) error {
 
 	// Sort paths
 	sortedPaths := make([]string, 0, len(zipMap))
-	for path, _ := range zipMap {
+	for path := range zipMap {
 		sortedPaths = append(sortedPaths, path)
 	}
 	sort.Strings(sortedPaths)

@@ -60,20 +60,20 @@ func (u *Upstream) configureRoutes() {
 
 	u.Routes = []route{
 		// Git Clone
-		route{"GET", regexp.MustCompile(gitProjectPattern + `info/refs\z`), git.GetInfoRefs(api)},
-		route{"POST", regexp.MustCompile(gitProjectPattern + `git-upload-pack\z`), contentEncodingHandler(git.PostRPC(api))},
-		route{"POST", regexp.MustCompile(gitProjectPattern + `git-receive-pack\z`), contentEncodingHandler(git.PostRPC(api))},
-		route{"PUT", regexp.MustCompile(gitProjectPattern + `gitlab-lfs/objects/([0-9a-f]{64})/([0-9]+)\z`), lfs.PutStore(api, proxy)},
+		{"GET", regexp.MustCompile(gitProjectPattern + `info/refs\z`), git.GetInfoRefs(api)},
+		{"POST", regexp.MustCompile(gitProjectPattern + `git-upload-pack\z`), contentEncodingHandler(git.PostRPC(api))},
+		{"POST", regexp.MustCompile(gitProjectPattern + `git-receive-pack\z`), contentEncodingHandler(git.PostRPC(api))},
+		{"PUT", regexp.MustCompile(gitProjectPattern + `gitlab-lfs/objects/([0-9a-f]{64})/([0-9]+)\z`), lfs.PutStore(api, proxy)},
 
 		// CI Artifacts
-		route{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
+		{"POST", regexp.MustCompile(ciAPIPattern + `v1/builds/[0-9]+/artifacts\z`), contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))},
 
 		// Explicitly proxy API requests
-		route{"", regexp.MustCompile(apiPattern), apiProxyQueue},
-		route{"", regexp.MustCompile(ciAPIPattern), apiProxyQueue},
+		{"", regexp.MustCompile(apiPattern), apiProxyQueue},
+		{"", regexp.MustCompile(ciAPIPattern), apiProxyQueue},
 
 		// Serve assets
-		route{"", regexp.MustCompile(`^/assets/`),
+		{"", regexp.MustCompile(`^/assets/`),
 			static.ServeExisting(u.URLPrefix, staticpages.CacheExpireMax,
 				NotFoundUnless(u.DevelopmentMode,
 					proxy,
@@ -85,10 +85,10 @@ func (u *Upstream) configureRoutes() {
 		// To prevent anybody who knows/guesses the URL of a user-uploaded file
 		// from downloading it we make sure requests to /uploads/ do _not_ pass
 		// through static.ServeExisting.
-		route{"", regexp.MustCompile(`^/uploads/`), static.ErrorPagesUnless(u.DevelopmentMode, proxy)},
+		{"", regexp.MustCompile(`^/uploads/`), static.ErrorPagesUnless(u.DevelopmentMode, proxy)},
 
 		// Serve static files or forward the requests
-		route{"", nil,
+		{"", nil,
 			static.ServeExisting(u.URLPrefix, staticpages.CacheDisabled,
 				static.DeployPage(
 					static.ErrorPagesUnless(u.DevelopmentMode,
