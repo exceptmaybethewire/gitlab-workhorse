@@ -585,7 +585,7 @@ func sendDataResponder(command string, literalJSON string) *httptest.Server {
 		w.Header().Set(sendDataHeader, fmt.Sprintf("%s:%s", command, data))
 
 		// This should never be returned
-		if _, err := fmt.Fprintf(w, "gibberish"); err != nil {
+		if _, err := fmt.Fprintf(w, "sendDataResponder error"); err != nil {
 			panic(err)
 		}
 
@@ -714,12 +714,13 @@ func TestGetGitPatch(t *testing.T) {
 	testhelper.AssertPatchSeries(t, body, "12d65c8dd2b2676fa3ac47d955accc085a37a9c1", toSha)
 }
 
-func TestGetGitCommit(t *testing.T) {
+func TestGetGitCommitDiff(t *testing.T) {
 	sha := "498214de67004b1da3d820901307bed2a68a8ef6"
 	repoPath := path.Join(testRepoRoot, testRepo)
-	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s"}`, repoPath, sha)
+	format := "diff"
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s","Format":"%s"}`, repoPath, sha, format)
 
-	resp, body, err := doSendDataRequest("/something", "git-show-commit", jsonParams)
+	resp, body, err := doSendDataRequest("/git-show-commit", "git-show-commit", jsonParams)
 	if err != nil {
 		t.Error(err)
 	}
@@ -729,8 +730,31 @@ func TestGetGitCommit(t *testing.T) {
 	}
 
 	prefix := "diff --git a/bar/branch-test.txt b/bar/branch-test.txt"
-	if !strings.HasPrefix(string(body), prefix) {
-		t.Fatalf("Expected: %v, got: %v", prefix, body)
+	bodyText := string(body)
+	if !strings.HasPrefix(bodyText, prefix) {
+		t.Fatalf("Expected: %v, got: %v", prefix, bodyText)
+	}
+}
+
+func TestGetGitCommitEmail(t *testing.T) {
+	sha := "498214de67004b1da3d820901307bed2a68a8ef6"
+	repoPath := path.Join(testRepoRoot, testRepo)
+	format := "email"
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s","Format":"%s"}`, repoPath, sha, format)
+
+	resp, body, err := doSendDataRequest("/git-show-commit", "git-show-commit", jsonParams)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
+	}
+
+	prefix := "From 498214de67004b1da3d820901307bed2a68a8ef6 Mon Sep 17 00:00:00 2001"
+	bodyText := string(body)
+	if !strings.HasPrefix(bodyText, prefix) {
+		t.Fatalf("Expected: %v, got: %v", prefix, bodyText)
 	}
 }
 

@@ -54,6 +54,7 @@ func (u *Upstream) configureRoutes() {
 		git.SendBlob,
 		git.SendDiff,
 		git.SendPatch,
+		git.SendCommit,
 		artifacts.SendEntry,
 	)
 	apiProxyQueue := queueing.QueueRequests(proxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout)

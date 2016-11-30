@@ -14,6 +14,7 @@ type show struct{ senddata.Prefix }
 type showParams struct {
 	RepoPath string
 	Sha      string
+	Format   string
 }
 
 var SendCommit = &show{"git-show-commit:"}
@@ -27,7 +28,7 @@ func (s *show) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 
 	log.Printf("SendCommit: sending commit %q for %q", params.Sha, r.URL.Path)
 
-	gitShowCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "show", "-p", "--format=", params.Sha, "--stdout")
+	gitShowCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "show", "-p", format(params), params.Sha)
 
 	stdout, err := gitShowCmd.StdoutPipe()
 	if err != nil {
@@ -50,4 +51,12 @@ func (s *show) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		helper.LogError(r, fmt.Errorf("SendCommit: wait for %v: %v", gitShowCmd.Args, err))
 		return
 	}
+}
+
+func format(params showParams) string {
+	if params.Format == "diff" {
+		return "--format="
+	}
+
+	return "--format=email"
 }
