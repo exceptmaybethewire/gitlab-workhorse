@@ -5,6 +5,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"strconv"
 	"strings"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -23,11 +26,26 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		return
 	}
 
+	blobIdSlice := []byte(params.BlobId)
+	blobPath := path.Join(params.RepoPath, "objects", string(blobIdSlice[:2]), string(blobIdSlice[2:]))
+
+	if rawFile, err := os.Open(blobPath); err == nil {
+		defer rawFile.Close()
+		log.Printf("SendBlob: sending %q for %q", blobPath, r.URL.Path)
+		serveLooseObject(w, r, rawFile)
+		return
+	}
+
 	log.Printf("SendBlob: sending %q for %q", params.BlobId, r.URL.Path)
 
 	sizeOutput, err := gitCommand("", "git", "--git-dir="+params.RepoPath, "cat-file", "-s", params.BlobId).Output()
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("SendBlob: get blob size: %v", err))
+		return
+	}
+	sizeInt64, err := strconv.ParseInt(strings.TrimSpace(string(sizeOutput)), 10, 64)
+	if err != nil {
+		helper.Fail500(w, r, fmt.Errorf("SendBlob: parse size: %v", err))
 		return
 	}
 
@@ -43,13 +61,43 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	}
 	defer helper.CleanUpProcessGroup(gitShowCmd)
 
-	w.Header().Set("Content-Length", strings.TrimSpace(string(sizeOutput)))
-	if _, err := io.Copy(w, stdout); err != nil {
+	blobWriter, err := newBlobWriter(blobPath)
+	if err != nil {
+		helper.Fail500(w, r, fmt.Errorf("SendBlob: create gitBlobWriter: %v", err))
+		return
+	}
+	defer blobWriter.Close()
+
+	if _, err := fmt.Fprintf(blobWriter, "blob %d\x00", sizeInt64); err != nil {
+		helper.Fail500(w, r, fmt.Errorf("SendBlob: write loose blob header: %v", err))
+		return
+	}
+	setContentLength(w, fmt.Sprintf("%d", sizeInt64))
+
+	blobReader := io.TeeReader(stdout, blobWriter)
+	n, err := io.Copy(w, blobReader)
+
+	if err != nil {
 		helper.LogError(r, &copyError{fmt.Errorf("SendBlob: copy git cat-file stdout: %v", err)})
 		return
 	}
+
+	if n != sizeInt64 {
+		helper.LogError(r, &copyError{fmt.Errorf("SendBlob: copy git cat-file stdout: wrote %d bytes, expected %d", n, sizeInt64)})
+		return
+	}
+
 	if err := gitShowCmd.Wait(); err != nil {
 		helper.LogError(r, fmt.Errorf("SendBlob: wait for git cat-file: %v", err))
 		return
 	}
+
+	if err := blobWriter.Finalize(); err != nil {
+		helper.LogError(r, fmt.Errorf("SendBlob: finalize cached blob: %v", err))
+		return
+	}
+}
+
+func setContentLength(w http.ResponseWriter, size string) {
+	w.Header().Set("Content-Length", size)
 }
