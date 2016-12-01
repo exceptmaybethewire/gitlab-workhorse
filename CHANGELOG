@@ -8,7 +8,6 @@ v1.0.0
   changes were made.
 - Add support for logging to file, and logfile rotation with SIGHUP.
 - Improve error messages.
-- Support to send diffs for single commits
 
 v0.8.5
 

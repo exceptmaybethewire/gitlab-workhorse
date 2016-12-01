@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -28,35 +27,24 @@ func (s *show) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 
 	log.Printf("SendCommit: sending commit %q for %q", params.Sha, r.URL.Path)
 
-	gitShowCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "show", "-p", format(params), params.Sha)
-
-	stdout, err := gitShowCmd.StdoutPipe()
+	format, err := format(params)
 	if err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendCommit: create stdout pipe: %v", err))
+		helper.Fail500(w, r, fmt.Errorf("SendCommit: %v", err))
 		return
 	}
 
-	if err := gitShowCmd.Start(); err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendCommit: start %v: %v", gitShowCmd.Args, err))
-		return
-	}
-	defer helper.CleanUpProcessGroup(gitShowCmd)
-
-	w.Header().Del("Content-Length")
-	if _, err := io.Copy(w, stdout); err != nil {
-		helper.LogError(r, &copyError{fmt.Errorf("SendCommit: copy %v stdout: %v", gitShowCmd.Args, err)})
-		return
-	}
-	if err := gitShowCmd.Wait(); err != nil {
-		helper.LogError(r, fmt.Errorf("SendCommit: wait for %v: %v", gitShowCmd.Args, err))
-		return
-	}
+	gitShowCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "show", "-p", format, params.Sha)
+	execGitCommand(w, r, gitShowCmd)
 }
 
-func format(params showParams) string {
-	if params.Format == "diff" {
-		return "--format="
+func format(params showParams) (string, error) {
+	switch params.Format {
+	case "diff":
+		// An empty format will only show the raw diff, nothing else
+		return "--format=", nil
+	case "email":
+		return "--format=email", nil
+	default:
+		return "", fmt.Errorf("format: %q is unsupported", params.Format)
 	}
-
-	return "--format=email"
 }

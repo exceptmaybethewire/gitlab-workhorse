@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -30,26 +29,5 @@ func (p *patch) Inject(w http.ResponseWriter, r *http.Request, sendData string) 
 
 	gitRange := fmt.Sprintf("%s..%s", params.ShaFrom, params.ShaTo)
 	gitPatchCmd := gitCommand("", "git", "--git-dir="+params.RepoPath, "format-patch", gitRange, "--stdout")
-
-	stdout, err := gitPatchCmd.StdoutPipe()
-	if err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendPatch: create stdout pipe: %v", err))
-		return
-	}
-
-	if err := gitPatchCmd.Start(); err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendPatch: start %v: %v", gitPatchCmd.Args, err))
-		return
-	}
-	defer helper.CleanUpProcessGroup(gitPatchCmd)
-
-	w.Header().Del("Content-Length")
-	if _, err := io.Copy(w, stdout); err != nil {
-		helper.LogError(r, &copyError{fmt.Errorf("SendPatch: copy %v stdout: %v", gitPatchCmd.Args, err)})
-		return
-	}
-	if err := gitPatchCmd.Wait(); err != nil {
-		helper.LogError(r, fmt.Errorf("SendPatch: wait for %v: %v", gitPatchCmd.Args, err))
-		return
-	}
+	execGitCommand(w, r, gitPatchCmd)
 }

@@ -699,7 +699,7 @@ func TestGetGitPatch(t *testing.T) {
 	// HEAD of master branch against HEAD of fix branch
 	fromSha := "6907208d755b60ebeacb2e9dfea74c92c3449a1f"
 	toSha := "48f0be4bd10c1decee6fae52f9ae6d10f77b60f4"
-	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","ShaFrom":"%s","ShaTo":"%s"}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
+	jsonParams := fmt.Sprintf(`{"RepoPath":%q,"ShaFrom":%q,"ShaTo":%q}`, path.Join(testRepoRoot, testRepo), fromSha, toSha)
 
 	resp, body, err := doSendDataRequest("/something", "git-format-patch", jsonParams)
 	if err != nil {
@@ -718,7 +718,7 @@ func TestGetGitCommitDiff(t *testing.T) {
 	sha := "498214de67004b1da3d820901307bed2a68a8ef6"
 	repoPath := path.Join(testRepoRoot, testRepo)
 	format := "diff"
-	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s","Format":"%s"}`, repoPath, sha, format)
+	jsonParams := fmt.Sprintf(`{"RepoPath":%q,"Sha":%q,"Format":%q}`, repoPath, sha, format)
 
 	resp, body, err := doSendDataRequest("/git-show-commit", "git-show-commit", jsonParams)
 	if err != nil {
@@ -740,7 +740,7 @@ func TestGetGitCommitEmail(t *testing.T) {
 	sha := "498214de67004b1da3d820901307bed2a68a8ef6"
 	repoPath := path.Join(testRepoRoot, testRepo)
 	format := "email"
-	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","Sha":"%s","Format":"%s"}`, repoPath, sha, format)
+	jsonParams := fmt.Sprintf(`{"RepoPath":%q,"Sha":%q,"Format":%q}`, repoPath, sha, format)
 
 	resp, body, err := doSendDataRequest("/git-show-commit", "git-show-commit", jsonParams)
 	if err != nil {
@@ -751,7 +751,7 @@ func TestGetGitCommitEmail(t *testing.T) {
 		t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
 	}
 
-	prefix := "From 498214de67004b1da3d820901307bed2a68a8ef6 Mon Sep 17 00:00:00 2001"
+	prefix := fmt.Sprintf("From %s Mon Sep 17 00:00:00 2001", sha)
 	bodyText := string(body)
 	if !strings.HasPrefix(bodyText, prefix) {
 		t.Fatalf("Expected: %v, got: %v", prefix, bodyText)
