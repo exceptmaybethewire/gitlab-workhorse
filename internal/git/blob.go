@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -29,10 +28,9 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	blobIdSlice := []byte(params.BlobId)
 	blobPath := path.Join(params.RepoPath, "objects", string(blobIdSlice[:2]), string(blobIdSlice[2:]))
 
-	if rawFile, err := os.Open(blobPath); err == nil {
-		defer rawFile.Close()
-		log.Printf("SendBlob: sending %q for %q", blobPath, r.URL.Path)
-		serveLooseObject(w, r, rawFile)
+	if looseBlobObject, err := openLooseBlob(blobPath); err == nil {
+		defer looseBlobObject.Close()
+		looseBlobObject.ServeHTTP(w, r)
 		return
 	}
 
@@ -61,17 +59,13 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	}
 	defer helper.CleanUpProcessGroup(gitShowCmd)
 
-	blobWriter, err := newBlobWriter(blobPath)
+	blobWriter, err := newBlobWriter(blobPath, sizeInt64)
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("SendBlob: create gitBlobWriter: %v", err))
 		return
 	}
 	defer blobWriter.Close()
 
-	if _, err := fmt.Fprintf(blobWriter, "blob %d\x00", sizeInt64); err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendBlob: write loose blob header: %v", err))
-		return
-	}
 	setContentLength(w, fmt.Sprintf("%d", sizeInt64))
 
 	blobReader := io.TeeReader(stdout, blobWriter)
