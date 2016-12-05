@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 
@@ -25,10 +24,7 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		return
 	}
 
-	blobIdSlice := []byte(params.BlobId)
-	blobPath := path.Join(params.RepoPath, "objects", string(blobIdSlice[:2]), string(blobIdSlice[2:]))
-
-	if looseBlobObject, err := openLooseBlob(blobPath); err == nil {
+	if looseBlobObject, err := openLooseBlob(params.RepoPath, params.BlobId); err == nil {
 		defer looseBlobObject.Close()
 		looseBlobObject.ServeHTTP(w, r)
 		return
@@ -59,7 +55,7 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	}
 	defer helper.CleanUpProcessGroup(gitShowCmd)
 
-	blobWriter, err := newBlobWriter(blobPath, sizeInt64)
+	blobWriter, err := newBlobWriter(params.RepoPath, params.BlobId, sizeInt64)
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("SendBlob: create gitBlobWriter: %v", err))
 		return
