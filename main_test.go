@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"compress/zlib"
+	"crypto/sha1"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,12 +36,12 @@ const testProject = "group/test"
 
 var checkoutDir = path.Join(scratchDir, "test")
 var cacheDir = path.Join(scratchDir, "cache")
+var testRepoPath = path.Join(testRepoRoot, testRepo)
 
 func TestMain(m *testing.M) {
 	source := "https://gitlab.com/gitlab-org/gitlab-test.git"
-	clonePath := path.Join(testRepoRoot, testRepo)
-	if _, err := os.Stat(clonePath); err != nil {
-		testCmd := exec.Command("git", "clone", "--bare", source, clonePath)
+	if _, err := os.Stat(testRepoPath); err != nil {
+		testCmd := exec.Command("git", "clone", "--bare", source, testRepoPath)
 		testCmd.Stdout = os.Stdout
 		testCmd.Stderr = os.Stderr
 
@@ -658,7 +661,7 @@ func TestArtifactsGetSingleFile(t *testing.T) {
 }
 
 func TestGetGitBlob(t *testing.T) {
-	blobId := "50b27c6518be44c42c4d87966ae2481ce895624c" // the LICENSE file in the test repository
+	blobId := []byte("50b27c6518be44c42c4d87966ae2481ce895624c") // the LICENSE file in the test repository
 	blobLength := 1075
 	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","BlobId":"%s"}`, path.Join(testRepoRoot, testRepo), blobId)
 
@@ -686,6 +689,82 @@ func TestGetGitBlob(t *testing.T) {
 	if h := resp.Header.Get(helper.NginxResponseBufferHeader); h != "no" {
 		t.Errorf("Expected %s to equal %q, got %q", helper.NginxResponseBufferHeader, "no", h)
 	}
+}
+
+func TestGitBlobCache(t *testing.T) {
+	blobId := []byte("08cf843fd8fe1c50757df0a13fcc44661996b4df") // files/images/6049019_460s.jpg in the test repository
+	blobLength := 111803
+	blobHeader := []byte(fmt.Sprintf("blob %d\000", blobLength))
+	jsonParams := fmt.Sprintf(`{"RepoPath":"%s","BlobId":"%s"}`, path.Join(testRepoRoot, testRepo), blobId)
+
+	blobIdBytes := make([]byte, 20)
+	if _, err := hex.Decode(blobIdBytes, blobId); err != nil {
+		t.Fatal(err) // only reached if blobId above is invalid hex
+	}
+
+	testBytes := func(byteReader io.Reader) {
+		hasher := sha1.New()
+
+		n, err := io.Copy(hasher, byteReader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		objectLength := len(blobHeader) + blobLength
+		if n != int64(objectLength) {
+			t.Fatalf("Expected %d bytes, got %d", objectLength, n)
+		}
+
+		sum := hasher.Sum([]byte{})
+		for i, b := range blobIdBytes {
+			if b != sum[i] {
+				t.Fatalf("Expected SHA1 hash byte %x at %d, got %x", b, i, sum[i])
+			}
+		}
+	}
+
+	doRequest := func() {
+		resp, body, err := doSendDataRequest("/something", "git-blob", jsonParams)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %q: expected HTTP 200, got %d", resp.Request.URL, resp.StatusCode)
+		}
+
+		testBytes(io.MultiReader(bytes.NewReader(blobHeader), bytes.NewReader(body)))
+	}
+
+	// Ensure the loose object does not exist
+	gcCmd := exec.Command("git", "--git-dir="+testRepoPath, "gc")
+	runOrFail(t, gcCmd)
+
+	looseObjectPath := path.Join(testRepoPath, "objects", fmt.Sprintf("%s/%s", blobId[:2], blobId[2:]))
+	if _, err := os.Stat(looseObjectPath); !os.IsNotExist(err) {
+		t.Fatalf("Expected %q not to exist, got %v", looseObjectPath, err)
+	}
+
+	// Trigger creation of loose object, test for succesful request
+	doRequest()
+
+	// Test contents of loose object
+	f, err := os.Open(looseObjectPath)
+	if err != nil {
+		t.Fatalf("Open %q: %v", looseObjectPath, err)
+	}
+	defer f.Close()
+
+	zlibReader, err := zlib.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zlibReader.Close()
+
+	testBytes(zlibReader)
+
+	// Test wheter we can still retrieve the object
+	doRequest()
 }
 
 func TestGetGitDiff(t *testing.T) {
