@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git/looseblob"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 )
@@ -24,9 +25,9 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		return
 	}
 
-	if looseBlobObject, err := openLooseBlob(params.RepoPath, params.BlobId); err == nil {
-		defer looseBlobObject.Close()
-		looseBlobObject.ServeHTTP(w, r)
+	if looseBlobHandler, err := looseblob.NewHandler(params.RepoPath, params.BlobId); err == nil {
+		defer looseBlobHandler.Close()
+		looseBlobHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -55,14 +56,14 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	}
 	defer helper.CleanUpProcessGroup(gitShowCmd)
 
-	blobWriter, err := newBlobWriter(params.RepoPath, params.BlobId, sizeInt64)
+	blobWriter, err := looseblob.NewWriter(params.RepoPath, params.BlobId, sizeInt64)
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("SendBlob: create gitBlobWriter: %v", err))
 		return
 	}
 	defer blobWriter.Close()
 
-	setContentLength(w, fmt.Sprintf("%d", sizeInt64))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", sizeInt64))
 
 	blobReader := io.TeeReader(stdout, blobWriter)
 	n, err := io.Copy(w, blobReader)
@@ -86,8 +87,4 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		helper.LogError(r, fmt.Errorf("SendBlob: finalize cached blob: %v", err))
 		return
 	}
-}
-
-func setContentLength(w http.ResponseWriter, size string) {
-	w.Header().Set("Content-Length", size)
 }
