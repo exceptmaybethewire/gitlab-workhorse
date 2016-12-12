@@ -5,3 +5,4 @@ testdata/public
 gitlab-zip-cat
 gitlab-zip-metadata
 _build
+/internal/git/looseblob/testdata/

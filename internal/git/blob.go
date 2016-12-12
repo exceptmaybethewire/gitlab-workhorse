@@ -66,15 +66,8 @@ func (b *blob) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", sizeInt64))
 
 	blobReader := io.TeeReader(stdout, blobWriter)
-	n, err := io.Copy(w, blobReader)
-
-	if err != nil {
+	if _, err := io.Copy(w, blobReader); err != nil {
 		helper.LogError(r, &copyError{fmt.Errorf("SendBlob: copy git cat-file stdout: %v", err)})
-		return
-	}
-
-	if n != sizeInt64 {
-		helper.LogError(r, &copyError{fmt.Errorf("SendBlob: copy git cat-file stdout: wrote %d bytes, expected %d", n, sizeInt64)})
 		return
 	}
 

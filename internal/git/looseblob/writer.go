@@ -2,14 +2,25 @@ package looseblob
 
 import (
 	"compress/zlib"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"hash"
+	"io"
 	"io/ioutil"
 	"os"
 )
 
+const nShaBytes = 20
+
 type Writer struct {
+	blobSha    []byte
 	file       *os.File
 	zlibWriter *zlib.Writer
+	size       int64
+	written    int64
+	hasher     hash.Hash
+	writer     io.Writer
 	*blobPath
 }
 
@@ -19,12 +30,16 @@ func NewWriter(repoPath, blobId string, size int64) (b *Writer, err error) {
 		return nil, err
 	}
 
-	b = &Writer{blobPath: blobPath}
+	b = &Writer{blobPath: blobPath, blobSha: make([]byte, nShaBytes)}
 	defer func() {
 		if err != nil {
 			b.Close()
 		}
 	}()
+
+	if n, err := hex.Decode(b.blobSha, []byte(blobId)); n != nShaBytes || err != nil {
+		return b, fmt.Errorf("newBlobWriter: error decoding blobId (%d bytes): %v", n, err)
+	}
 
 	if err := b.mkdir(); err != nil {
 		return b, fmt.Errorf("newBlobWriter: create blob directory: %v", err)
@@ -36,7 +51,10 @@ func NewWriter(repoPath, blobId string, size int64) (b *Writer, err error) {
 
 	b.zlibWriter = zlib.NewWriter(b.file)
 
-	if _, err := fmt.Fprintf(b.zlibWriter, "blob %d\x00", size); err != nil {
+	b.size = size
+	b.hasher = sha1.New()
+	b.writer = io.MultiWriter(b.zlibWriter, b.hasher)
+	if _, err := fmt.Fprintf(b.writer, "blob %d\x00", size); err != nil {
 		return b, fmt.Errorf("newBlobWriter: write loose object header: %v", err)
 	}
 
@@ -44,7 +62,9 @@ func NewWriter(repoPath, blobId string, size int64) (b *Writer, err error) {
 }
 
 func (b *Writer) Write(data []byte) (n int, err error) {
-	return b.zlibWriter.Write(data)
+	n, err = b.writer.Write(data)
+	b.written += int64(n)
+	return n, err
 }
 
 func (b *Writer) Close() error {
@@ -61,6 +81,17 @@ func (b *Writer) Close() error {
 }
 
 func (b *Writer) Finalize() error {
+	if b.written != b.size {
+		return fmt.Errorf("gitBlobWriter: expected %d bytes, got %d", b.size, b.written)
+	}
+
+	sum := b.hasher.Sum([]byte{})
+	for i := range sum {
+		if sum[i] != b.blobSha[i] {
+			return fmt.Errorf("gitBlobWriter: SHA1 mismatch: expected %x, got %x", b.blobSha, sum)
+		}
+	}
+
 	if err := b.zlibWriter.Close(); err != nil {
 		return fmt.Errorf("gitBlobWriter: close zlib writer: %v", err)
 	}
