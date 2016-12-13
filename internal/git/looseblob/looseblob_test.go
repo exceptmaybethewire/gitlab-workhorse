@@ -11,6 +11,9 @@ func TestNewBlobPath(t *testing.T) {
 	}{
 		{"69f4dccb6121848aea6313d4049f3916ec575824", true},
 		{"69f4dccb6121848aea63/13d40493916ec575824", false},
+		{"/69f4dccb6121848aea6313d40493916ec575824", false},
+		{"69f4dccb6121848aea6313d40493916ec575824/", false},
+		{"../69f4dccb6121848aea63d40493916ec575824", false},
 		{"hello world!!", false},
 		{"69f4dccb612", false},
 	}
