@@ -11,8 +11,6 @@ import (
 	"os"
 )
 
-const nShaBytes = 20
-
 type Writer struct {
 	blobSha    []byte
 	file       *os.File
@@ -30,14 +28,14 @@ func NewWriter(repoPath, blobId string, size int64) (b *Writer, err error) {
 		return nil, err
 	}
 
-	b = &Writer{blobPath: blobPath, blobSha: make([]byte, nShaBytes)}
+	b = &Writer{blobPath: blobPath, blobSha: make([]byte, sha1.Size)}
 	defer func() {
 		if err != nil {
 			b.Close()
 		}
 	}()
 
-	if n, err := hex.Decode(b.blobSha, []byte(blobId)); n != nShaBytes || err != nil {
+	if n, err := hex.Decode(b.blobSha, []byte(blobId)); n != sha1.Size || err != nil {
 		return b, fmt.Errorf("newBlobWriter: error decoding blobId (%d bytes): %v", n, err)
 	}
 
@@ -68,16 +66,10 @@ func (b *Writer) Write(data []byte) (n int, err error) {
 }
 
 func (b *Writer) Close() error {
-	if b.zlibWriter != nil {
-		b.zlibWriter.Close()
-	}
-
 	if b.file != nil {
 		os.Remove(b.file.Name())
-		return b.file.Close()
 	}
-
-	return nil
+	return b.close()
 }
 
 func (b *Writer) Finalize() error {
@@ -92,14 +84,12 @@ func (b *Writer) Finalize() error {
 		}
 	}
 
-	if err := b.zlibWriter.Close(); err != nil {
-		return fmt.Errorf("gitBlobWriter: close zlib writer: %v", err)
+	// We cannot use Close() because it removes the file we still need.
+	if err := b.close(); err != nil {
+		return fmt.Errorf("gitBlobWriter: close: %v", err)
 	}
 
-	if err := b.file.Close(); err != nil {
-		return fmt.Errorf("gitBlobWriter: close tempfile: %v", err)
-	}
-
+	// We link _after_ closing to obtain the close-to-open consistency of NFS.
 	if err := os.Link(b.file.Name(), b.Path()); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("gitBlobWriter: create loose object file: %v", err)
 	}
@@ -109,4 +99,25 @@ func (b *Writer) Finalize() error {
 
 func (b *Writer) mkdir() error {
 	return os.MkdirAll(b.dir(), 0755)
+}
+
+func (b *Writer) close() error {
+	// All Closers will be closed in order regardless of errors. If any one
+	// errors, some error is returned.
+	closers := []io.Closer{b.zlibWriter, b.file}
+	errs := make([]error, len(closers))
+
+	for i, c := range closers {
+		if c != nil {
+			errs[i] = c.Close()
+		}
+	}
+
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
