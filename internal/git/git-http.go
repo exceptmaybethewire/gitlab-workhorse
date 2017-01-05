@@ -15,9 +15,19 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/timeout"
+)
+
+const (
+	// This timeout applies to individual Write() calls and WriteHeader().
+	// Should be high enough never to interfere with non-pathological
+	// requests, low enough to clean up pathological client connnections
+	// faster than they build up.
+	writeTimeout = 10 * time.Minute
 )
 
 func GetInfoRefs(a *api.API) http.Handler {
@@ -40,17 +50,18 @@ func looksLikeRepo(p string) bool {
 
 func repoPreAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
+		rw := timeout.NewResponseWriter(w, writeTimeout)
 		if a.RepoPath == "" {
-			helper.Fail500(w, r, fmt.Errorf("repoPreAuthorizeHandler: RepoPath empty"))
+			helper.Fail500(rw, r, fmt.Errorf("repoPreAuthorizeHandler: RepoPath empty"))
 			return
 		}
 
 		if !looksLikeRepo(a.RepoPath) {
-			http.Error(w, "Not Found", 404)
+			http.Error(rw, "Not Found", 404)
 			return
 		}
 
-		handleFunc(w, r, a)
+		handleFunc(rw, r, a)
 	}, "")
 }
 
