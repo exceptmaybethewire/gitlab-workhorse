@@ -36,6 +36,7 @@ import (
 var Version = "(unknown version)" // Set at build time in the Makefile
 
 var printVersion = flag.Bool("version", false, "Print version and exit")
+var configFile = flag.String("config", "", "File to load configs from")
 var listenAddr = flag.String("listenAddr", "localhost:8181", "Listen address for HTTP server")
 var listenNetwork = flag.String("listenNetwork", "tcp", "Listen 'network' (tcp, tcp4, tcp6, unix)")
 var listenUmask = flag.Int("listenUmask", 0, "Umask for Unix socket")
@@ -53,6 +54,7 @@ var logFile = flag.String("logFile", "", "Log file to be used")
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. ':9100'")
 
 func main() {
+	var err error
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n  %s [OPTIONS]\n\nOptions:\n", os.Args[0])
@@ -66,52 +68,87 @@ func main() {
 		os.Exit(0)
 	}
 
-	startLogging(*logFile)
+	cfg := config.Config{}
+	if configFile != nil {
+		if cfg, err = config.LoadConfig(*configFile); err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	backendURL, err := parseAuthBackend(*authBackend)
+	if logFile != nil {
+		cfg.LogFile = *logFile
+	}
+	startLogging(cfg.LogFile)
+
+	if authBackend != nil {
+		cfg.BackendRaw = *authBackend
+	}
+
+	cfg.Backend, err = parseAuthBackend(cfg.BackendRaw)
 	if err != nil {
 		log.Fatalf("invalid authBackend: %v", err)
 	}
 
 	log.Printf("Starting %s", version)
 
+	if listenNetwork != nil {
+		cfg.ListenNetwork = *listenNetwork
+	}
+
 	// Good housekeeping for Unix sockets: unlink before binding
-	if *listenNetwork == "unix" {
-		if err := os.Remove(*listenAddr); err != nil && !os.IsNotExist(err) {
+	if cfg.ListenNetwork == "unix" {
+		if err = os.Remove(*listenAddr); err != nil && !os.IsNotExist(err) {
 			log.Fatal(err)
 		}
 	}
+	if listenAddr != nil {
+		cfg.ListenAddress = *listenAddr
+	}
+	if listenNetwork != nil {
+		cfg.ListenNetwork = *listenNetwork
+	}
+	if listenUmask != nil {
+		cfg.ListenUmask = *listenUmask
+	}
 
 	// Change the umask only around net.Listen()
-	oldUmask := syscall.Umask(*listenUmask)
-	listener, err := net.Listen(*listenNetwork, *listenAddr)
+	oldUmask := syscall.Umask(cfg.ListenUmask)
+	listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
 	syscall.Umask(oldUmask)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if pprofListenAddr != nil {
+		cfg.PprofListenAddress = *pprofListenAddr
+	}
+	if prometheusListenAddr != nil {
+		cfg.PrometheusListenAddress = *prometheusListenAddr
 	}
 
 	// The profiler will only be activated by HTTP requests. HTTP
 	// requests can only reach the profiler if we start a listener. So by
 	// having no profiler HTTP listener by default, the profiler is
 	// effectively disabled by default.
-	if *pprofListenAddr != "" {
+	if cfg.PprofListenAddress != "" {
 		go func() {
-			log.Print(http.ListenAndServe(*pprofListenAddr, nil))
+			log.Print(http.ListenAndServe(cfg.PprofListenAddress, nil))
 		}()
 	}
 
-	if *prometheusListenAddr != "" {
+	if cfg.PrometheusListenAddress != "" {
 		promMux := http.NewServeMux()
 		promMux.Handle("/metrics", promhttp.Handler())
 		go func() {
-			log.Print(http.ListenAndServe(*prometheusListenAddr, promMux))
+			log.Print(http.ListenAndServe(cfg.PrometheusListenAddress, promMux))
 		}()
 	}
 
 	secret.SetPath(*secretPath)
-	cfg := config.Config{
-		Backend:             backendURL,
-		Socket:              *authSocket,
+	if authSocket != nil {
+		cfg.Socket = *authSocket
+	}
+	/*cfg = config.Config{
 		Version:             Version,
 		DocumentRoot:        *documentRoot,
 		DevelopmentMode:     *developmentMode,
@@ -119,7 +156,7 @@ func main() {
 		APILimit:            *apiLimit,
 		APIQueueLimit:       *apiQueueLimit,
 		APIQueueTimeout:     *apiQueueTimeout,
-	}
+	}*/
 
 	up := wrapRaven(upstream.NewUpstream(cfg))
 
