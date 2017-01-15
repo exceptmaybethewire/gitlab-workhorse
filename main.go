@@ -36,7 +36,7 @@ import (
 var Version = "(unknown version)" // Set at build time in the Makefile
 
 var printVersion = flag.Bool("version", false, "Print version and exit")
-var configFile = flag.String("config", "", "File to load configs from")
+var configFile = flag.String("config", "", "File to load configs from. Disabled the use of config-flags")
 var listenAddr = flag.String("listenAddr", "localhost:8181", "Listen address for HTTP server")
 var listenNetwork = flag.String("listenNetwork", "tcp", "Listen 'network' (tcp, tcp4, tcp6, unix)")
 var listenUmask = flag.Int("listenUmask", 0, "Umask for Unix socket")
@@ -69,20 +69,23 @@ func main() {
 	}
 
 	cfg := config.Config{}
-	if configFile != nil {
+	if *configFile != "" {
 		if cfg, err = config.LoadConfig(*configFile); err != nil {
 			log.Fatal(err)
 		}
-	}
-
-	if logFile != nil {
+	} else { // If we have a config-file, don't bother with the flags...
 		cfg.LogFile = *logFile
-	}
-	startLogging(cfg.LogFile)
-
-	if authBackend != nil {
 		cfg.BackendRaw = *authBackend
+		cfg.ListenNetwork = *listenNetwork
+		cfg.ListenAddress = *listenAddr
+		cfg.ListenNetwork = *listenNetwork
+		cfg.ListenUmask = *listenUmask
+		cfg.PprofListenAddress = *pprofListenAddr
+		cfg.PrometheusListenAddress = *prometheusListenAddr
+		cfg.Socket = *authSocket
 	}
+
+	startLogging(cfg.LogFile)
 
 	cfg.Backend, err = parseAuthBackend(cfg.BackendRaw)
 	if err != nil {
@@ -91,24 +94,11 @@ func main() {
 
 	log.Printf("Starting %s", version)
 
-	if listenNetwork != nil {
-		cfg.ListenNetwork = *listenNetwork
-	}
-
 	// Good housekeeping for Unix sockets: unlink before binding
 	if cfg.ListenNetwork == "unix" {
-		if err = os.Remove(*listenAddr); err != nil && !os.IsNotExist(err) {
+		if err = os.Remove(cfg.ListenAddress); err != nil && !os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-	}
-	if listenAddr != nil {
-		cfg.ListenAddress = *listenAddr
-	}
-	if listenNetwork != nil {
-		cfg.ListenNetwork = *listenNetwork
-	}
-	if listenUmask != nil {
-		cfg.ListenUmask = *listenUmask
 	}
 
 	// Change the umask only around net.Listen()
@@ -117,13 +107,6 @@ func main() {
 	syscall.Umask(oldUmask)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	if pprofListenAddr != nil {
-		cfg.PprofListenAddress = *pprofListenAddr
-	}
-	if prometheusListenAddr != nil {
-		cfg.PrometheusListenAddress = *prometheusListenAddr
 	}
 
 	// The profiler will only be activated by HTTP requests. HTTP
@@ -145,9 +128,6 @@ func main() {
 	}
 
 	secret.SetPath(*secretPath)
-	if authSocket != nil {
-		cfg.Socket = *authSocket
-	}
 	/*cfg = config.Config{
 		Version:             Version,
 		DocumentRoot:        *documentRoot,
