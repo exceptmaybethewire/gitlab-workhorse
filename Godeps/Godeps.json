@@ -7,6 +7,11 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/BurntSushi/toml",
+			"Comment": "v0.2.0-21-g9906417",
+			"Rev": "99064174e013895bbd9b025c31100bd1d9b590ca"
+		},
+		{
 			"ImportPath": "github.com/beorn7/perks/quantile",
 			"Rev": "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
 		},
