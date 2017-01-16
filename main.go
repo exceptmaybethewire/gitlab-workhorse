@@ -73,17 +73,27 @@ func main() {
 		if cfg, err = config.LoadConfig(*configFile); err != nil {
 			log.Fatal(err)
 		}
-	} else { // If we have a config-file, don't bother with the flags...
-		cfg.LogFile = *logFile
-		cfg.BackendRaw = *authBackend
-		cfg.ListenNetwork = *listenNetwork
-		cfg.ListenAddress = *listenAddr
-		cfg.ListenNetwork = *listenNetwork
-		cfg.ListenUmask = *listenUmask
-		cfg.PprofListenAddress = *pprofListenAddr
-		cfg.PrometheusListenAddress = *prometheusListenAddr
-		cfg.Socket = *authSocket
 	}
+	flag.Visit(func(arg1 *flag.Flag) {
+		switch arg1.Name {
+		case "logFile":
+			cfg.LogFile = *logFile
+		case "authBackend":
+			cfg.BackendRaw = *authBackend
+		case "listenNetwork":
+			cfg.ListenNetwork = *listenNetwork
+		case "listenAddr":
+			cfg.ListenAddress = *listenAddr
+		case "listenUmask":
+			cfg.ListenUmask = *listenUmask
+		case "pprofListenAddr":
+			cfg.PprofListenAddress = *pprofListenAddr
+		case "prometheusListenAddr":
+			cfg.PrometheusListenAddress = *prometheusListenAddr
+		case "authSocket":
+			cfg.Socket = *authSocket
+		}
+	})
 
 	startLogging(cfg.LogFile)
 
