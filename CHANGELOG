@@ -2,6 +2,10 @@
 
 Formerly known as 'gitlab-git-http-server'.
 
+v1.2.2
+
+- Fix stalled HTTP fetches with large payloads. !110
+
 v1.2.1
 
 - More Prometheus metrics
