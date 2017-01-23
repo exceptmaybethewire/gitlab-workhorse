@@ -3,40 +3,77 @@ package redis
 import (
 	"time"
 
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
+
 	"github.com/garyburd/redigo/redis"
 )
 
-// Client holds the redis-connection
-type Client struct {
-	Conn redis.Conn
-}
+var pool *redis.Pool
 
-// NewClient connects to redis returns a Client instance.
-func NewClient(socket, password string, timeout time.Duration) (*Client, error) {
-	connPass := redis.DialPassword("password")
-	connTimeout := redis.DialReadTimeout(timeout)
-	conn, err := redis.Dial("unix", socket, connPass, connTimeout)
-	if err != nil {
-		return nil, err
+func Configure(cfg *config.RedisConfig) {
+	maxIdle := 5
+	if cfg.MaxIdle != nil {
+		maxIdle = *cfg.MaxIdle
 	}
-
-	cli := new(Client)
-	cli.Conn = conn
-	return cli, nil
-}
-
-// SubscribeKey subscribes to a key, waits at most timeout seconds before returning NotChanged
-func (c *Client) SubscribeKey(channel, key string) (bool, error) {
-	psc := redis.PubSubConn{Conn: c.Conn}
-	psc.Subscribe(channel)
-	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			if string(v.Data) == key {
-				return true, nil
+	maxActive := 0
+	if cfg.MaxActive != nil {
+		maxActive = *cfg.MaxActive
+	}
+	readTimeout := time.Duration(50)
+	if cfg.ReadTimeout != nil {
+		readTimeout = time.Duration(*cfg.ReadTimeout)
+	}
+	pool = &redis.Pool{
+		MaxIdle:     maxIdle,         // Keep at most X hot connections
+		MaxActive:   maxActive,       // Keep at most X live connections, 0 means unlimited
+		IdleTimeout: 3 * time.Minute, // 3 Minutes until an unused connection is closed. Newer gonna be used, but it's nice to have just in case
+		Dial: func() (redis.Conn, error) {
+			dopts := []redis.DialOption{redis.DialReadTimeout(readTimeout * time.Second)}
+			if cfg.Password != "" {
+				dopts = append(dopts, redis.DialPassword(cfg.Password))
 			}
-		case error:
-			return false, v
-		}
+			return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+		},
 	}
+}
+
+func Get() redis.Conn {
+	if pool != nil {
+		return pool.Get()
+	}
+	return nil
+}
+
+// WaitKey subscribes to a key and returns a channel, when it's done the
+//  channel will have these values:
+//  true: the key has changed
+//  false: the key has not changed, OR the timeout was reached,
+//         OR an error has occured (that is ugly, but efficient)
+func WaitKey(channel, key string) chan bool {
+	c := make(chan bool)
+
+	go func(c chan bool) {
+		conn := pool.Get()
+		if conn == nil {
+			c <- false
+		}
+		defer conn.Close()
+
+		// NOTE: conn.Close() is deferred so no need to psc.Close()
+		psc := redis.PubSubConn{Conn: conn}
+		psc.Subscribe(channel)
+		defer psc.Unsubscribe(channel) // This is however probably a good idea...
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				if string(v.Data) == key {
+					c <- true
+				}
+			case error:
+				c <- false
+			}
+		}
+	}(c)
+
+	return c
 }
