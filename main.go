@@ -36,7 +36,7 @@ import (
 var Version = "(unknown version)" // Set at build time in the Makefile
 
 var printVersion = flag.Bool("version", false, "Print version and exit")
-var configFile = flag.String("config", "", "File to load configs from. Disabled the use of config-flags")
+var configFile = flag.String("config", "", "File to load configs from")
 var listenAddr = flag.String("listenAddr", "localhost:8181", "Listen address for HTTP server")
 var listenNetwork = flag.String("listenNetwork", "tcp", "Listen 'network' (tcp, tcp4, tcp6, unix)")
 var listenUmask = flag.Int("listenUmask", 0, "Umask for Unix socket")
@@ -54,7 +54,10 @@ var logFile = flag.String("logFile", "", "Log file to be used")
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. ':9100'")
 
 func main() {
-	var err error
+	var (
+		err error
+		cfg config.Config
+	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n  %s [OPTIONS]\n\nOptions:\n", os.Args[0])
@@ -68,7 +71,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	cfg := config.Config{}
 	if *configFile != "" {
 		if cfg, err = config.LoadConfig(*configFile); err != nil {
 			log.Fatal(err)
