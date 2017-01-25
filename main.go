@@ -52,8 +52,18 @@ var apiLimit = flag.Uint("apiLimit", 0, "Number of API requests allowed at singl
 var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowed to be queued")
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
 var apiCiLongPollingDuration = flag.Duration("apiCiLongPollingDuration", 0, "Long polling duration for job requesting for runners (default 0s - disabled)")
-var logFile = flag.String("logFile", "", "Log file to be used")
+
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. 'localhost:9229'")
+
+var logConfig = logConfiguration{}
+
+func init() {
+	flag.BoolVar(&logConfig.accessLogEnabled, "enableAccessLog", false, "Enable Access Log")
+	flag.StringVar(&logConfig.accessLogFile, "accessLogFile", "", "File to be used for Access Log")
+
+	flag.StringVar(&logConfig.logFile, "logFile", "", "Log file location")
+	flag.StringVar(&logConfig.logFormat, "logFormat", "text", "Log format to use defaults to text (text, json, logstash, none)")
+}
 
 func main() {
 	flag.Usage = func() {
@@ -69,7 +79,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	startLogging(*logFile)
+	startLogging(logConfig)
 
 	backendURL, err := parseAuthBackend(*authBackend)
 	if err != nil {
