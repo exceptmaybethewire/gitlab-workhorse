@@ -12,7 +12,6 @@ type TomlURL struct {
 }
 
 func (u *TomlURL) UnmarshalText(text []byte) error {
-	var err error
 	temp, err := url.Parse(string(text))
 	u.URL = *temp
 	return err

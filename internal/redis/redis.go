@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"log"
 	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
@@ -11,6 +12,9 @@ import (
 var pool *redis.Pool
 
 func Configure(cfg *config.RedisConfig) {
+	if cfg == nil {
+		return
+	}
 	maxIdle := 5
 	if cfg.MaxIdle != nil {
 		maxIdle = *cfg.MaxIdle
@@ -35,8 +39,14 @@ func Configure(cfg *config.RedisConfig) {
 			return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 		},
 	}
+
+	log.Println("redis Configured, firing up redisWorker")
+
+	// This is no longer only Configure, but StartService as well...
+	go redisWorker()
 }
 
+// Get a connection for the Redis-pool
 func Get() redis.Conn {
 	if pool != nil {
 		return pool.Get()
@@ -44,36 +54,9 @@ func Get() redis.Conn {
 	return nil
 }
 
-// WaitKey subscribes to a key and returns a channel, when it's done the
-//  channel will have these values:
-//  true: the key has changed
-//  false: the key has not changed, OR the timeout was reached,
-//         OR an error has occured (that is ugly, but efficient)
-func WaitKey(channel, key string) chan bool {
-	c := make(chan bool)
-
-	go func(c chan bool) {
-		conn := pool.Get()
-		if conn == nil {
-			c <- false
-		}
-		defer conn.Close()
-
-		// NOTE: conn.Close() is deferred so no need to psc.Close()
-		psc := redis.PubSubConn{Conn: conn}
-		psc.Subscribe(channel)
-		defer psc.Unsubscribe(channel) // This is however probably a good idea...
-		for {
-			switch v := psc.Receive().(type) {
-			case redis.Message:
-				if string(v.Data) == key {
-					c <- true
-				}
-			case error:
-				c <- false
-			}
-		}
-	}(c)
-
-	return c
+// GetString fetches the value of a key in Redis as a string
+func GetString(key string) (string, error) {
+	conn := Get()
+	defer conn.Close()
+	return redis.String(conn.Do("GET", key))
 }
