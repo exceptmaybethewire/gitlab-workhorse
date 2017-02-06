@@ -132,6 +132,7 @@ func main() {
 		cfg.Redis = cfgFromFile.Redis
 
 		redis.Configure(cfg.Redis)
+		redis.Process()
 	}
 
 	up := wrapRaven(upstream.NewUpstream(cfg))

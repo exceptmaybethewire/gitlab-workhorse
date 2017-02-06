@@ -1,7 +1,8 @@
 package redis
 
 import (
-	"log"
+	"fmt"
+	"sync"
 	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
@@ -11,6 +12,7 @@ import (
 
 var pool *redis.Pool
 
+// Configure redis-connection
 func Configure(cfg *config.RedisConfig) {
 	if cfg == nil {
 		return
@@ -23,7 +25,7 @@ func Configure(cfg *config.RedisConfig) {
 	if cfg.MaxActive != nil {
 		maxActive = *cfg.MaxActive
 	}
-	readTimeout := time.Duration(50)
+	readTimeout := time.Duration(50 * time.Second)
 	if cfg.ReadTimeout != nil {
 		readTimeout = time.Duration(*cfg.ReadTimeout)
 	}
@@ -39,11 +41,14 @@ func Configure(cfg *config.RedisConfig) {
 			return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 		},
 	}
+}
 
-	log.Println("redis Configured, firing up redisWorker")
-
-	// This is no longer only Configure, but StartService as well...
-	go redisWorker()
+// Process redis subscriptions
+func Process() {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go redisWorker(&wg)
+	wg.Wait()
 }
 
 // Get a connection for the Redis-pool
@@ -57,6 +62,9 @@ func Get() redis.Conn {
 // GetString fetches the value of a key in Redis as a string
 func GetString(key string) (string, error) {
 	conn := Get()
+	if conn == nil {
+		return "", fmt.Errorf("Not connected to redis")
+	}
 	defer conn.Close()
 	return redis.String(conn.Do("GET", key))
 }

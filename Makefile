@@ -10,7 +10,7 @@ all: clean-build gitlab-zip-cat gitlab-zip-metadata gitlab-workhorse
 
 gitlab-zip-cat:	${BUILD_DIR}/_build $(shell find cmd/gitlab-zip-cat/ -name '*.go')
 	${GOBUILD} -o ${BUILD_DIR}/$@ ${PKG}/cmd/$@
-	
+
 gitlab-zip-metadata:	${BUILD_DIR}/_build $(shell find cmd/gitlab-zip-metadata/ -name '*.go')
 	${GOBUILD} -o ${BUILD_DIR}/$@ ${PKG}/cmd/$@
 
@@ -26,8 +26,13 @@ ${BUILD_DIR}/_build:
 	tar -cf - --exclude _build --exclude .git . | (cd $@/src/${PKG} && tar -xf -)
 	touch $@
 
+.PHONY: deps
+deps:
+	go get -d -u github.com/stretchr/testify
+	go get -d -u github.com/rafaeljusto/redigomock
+
 .PHONY: test
-test:	clean-build clean-workhorse all
+test:	clean-build clean-workhorse all deps
 	go fmt ${PKG}/... | awk '{ print } END { if (NR > 0) { print "Please run go fmt"; exit 1 } }'
 	go test ${PKG}/...
 	@echo SUCCESS
