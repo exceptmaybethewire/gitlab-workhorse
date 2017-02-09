@@ -1,16 +1,14 @@
 package timeout
 
 import (
-	"errors"
 	"net/http"
 	"time"
 )
 
 type responseWriter struct {
-	responseWriter      http.ResponseWriter
-	timer               StartStopper
-	status              int
-	writeHeaderTimedOut bool
+	http.ResponseWriter
+	timer  StartStopper
+	status int
 }
 
 type writeResult struct {
@@ -18,12 +16,14 @@ type writeResult struct {
 	err error
 }
 
+type timeoutPanic string
+
 // Put a timeout on each WriteHeader and Write call on the
 // ResponseWriter. The timeout gets reset for every WriteHeader / Write
-// call.
+// call. Panics when the timeout is exceeded.
 func NewResponseWriter(rw http.ResponseWriter, ti time.Duration) http.ResponseWriter {
 	return &responseWriter{
-		responseWriter: rw,
+		ResponseWriter: rw,
 		timer:          NewStartStopper(ti),
 	}
 }
@@ -33,15 +33,11 @@ func (tw *responseWriter) Write(p []byte) (int, error) {
 		tw.WriteHeader(http.StatusOK)
 	}
 
-	if tw.writeHeaderTimedOut {
-		return 0, errors.New("responseWriter: Write called after WriteHeader timed out")
-	}
-
 	tw.timer.Start()
 
-	writeChan := make(chan writeResult)
+	writeChan := make(chan writeResult, 1)
 	go func() {
-		n, err := tw.responseWriter.Write(p)
+		n, err := tw.ResponseWriter.Write(p)
 		writeChan <- writeResult{n: n, err: err}
 	}()
 
@@ -50,10 +46,7 @@ func (tw *responseWriter) Write(p []byte) (int, error) {
 		tw.timer.Stop()
 		return wr.n, wr.err
 	case <-tw.timer.Chan():
-		go func() {
-			<-writeChan // allow writer goroutine to finish
-		}()
-		return 0, errors.New("responseWriter: Write timeout")
+		panic(timeoutPanic("responseWriter: Write() timeout"))
 	}
 }
 
@@ -67,21 +60,14 @@ func (tw *responseWriter) WriteHeader(status int) {
 
 	writeHeaderChan := make(chan struct{})
 	go func() {
-		tw.responseWriter.WriteHeader(status)
-		writeHeaderChan <- struct{}{}
+		tw.ResponseWriter.WriteHeader(status)
+		close(writeHeaderChan)
 	}()
 
 	select {
 	case <-writeHeaderChan:
 		tw.timer.Stop()
 	case <-tw.timer.Chan():
-		go func() {
-			<-writeHeaderChan
-		}()
-		tw.writeHeaderTimedOut = true
+		panic(timeoutPanic("responseWriter: WriteHeader() timeout"))
 	}
-}
-
-func (tw *responseWriter) Header() http.Header {
-	return tw.responseWriter.Header()
 }

@@ -20,27 +20,41 @@ func TestResponseWriterTimeouts(t *testing.T) {
 	}{
 		{true, []time.Duration{fast}},
 		{true, []time.Duration{fast, fast, fast}},
-		{true, []time.Duration{slow}}, // there is no way to detect a single WriteHeader failure
+		{false, []time.Duration{slow}},
 		{false, []time.Duration{slow, fast, fast}},
 		{false, []time.Duration{fast, slow, fast}},
 	}
 
 	for _, tc := range testCases {
 		w := NewResponseWriter(&slowWriter{delays: tc.delays}, timeout)
-		seenErrors := []error{}
-		w.WriteHeader(200)
+		seenPanics := catchPanic(nil, func() {
+			w.WriteHeader(200)
+		})
 		for range tc.delays[1:] {
-			if _, err := w.Write(writeData); err != nil {
-				seenErrors = append(seenErrors, err)
-			}
+			seenPanics = catchPanic(seenPanics, func() {
+				if _, err := w.Write(writeData); err != nil {
+					t.Fatal(err)
+				}
+			})
 		}
-		if tc.success && len(seenErrors) > 0 {
-			t.Errorf("case %v: no errors expected but received %v", tc, seenErrors[0])
+		if tc.success && len(seenPanics) > 0 {
+			t.Errorf("case %v: no panics expected but received %v", tc, seenPanics[0])
 		}
-		if !tc.success && len(seenErrors) == 0 {
-			t.Errorf("case %v: error expected, none received", tc)
+		if !tc.success && len(seenPanics) == 0 {
+			t.Errorf("case %v: panic expected, none happened", tc)
 		}
 	}
+}
+
+func catchPanic(seenPanics []timeoutPanic, cb func()) (result []timeoutPanic) {
+	result = append([]timeoutPanic{}, seenPanics...)
+	defer func() {
+		if p := recover(); p != nil {
+			result = append(result, p.(timeoutPanic))
+		}
+	}()
+	cb()
+	return result
 }
 
 type slowWriter struct {
