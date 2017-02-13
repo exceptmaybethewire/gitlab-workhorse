@@ -25,7 +25,10 @@ type KeyChan struct {
 }
 
 func redisWorkerInner(conn redis.Conn) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		openConnections.Dec()
+	}()
 	psc := redis.PubSubConn{Conn: conn}
 	if err := psc.PSubscribe(keyPubEventSet); err != nil {
 		return
@@ -54,6 +57,8 @@ func redisWorker(wg *sync.WaitGroup) {
 	for {
 		conn, err := redisDialFunc()
 		if err == nil || conn != nil {
+			totalConnections.Inc()
+			openConnections.Inc()
 			redisWorkerInner(conn)
 		} else {
 			time.Sleep(1 * time.Second)

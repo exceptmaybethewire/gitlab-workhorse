@@ -10,10 +10,43 @@ import (
 
 	sentinel "github.com/FZambia/go-sentinel"
 	"github.com/garyburd/redigo/redis"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-var pool *redis.Pool
-var sntnl *sentinel.Sentinel
+var (
+	pool  *redis.Pool
+	sntnl *sentinel.Sentinel
+)
+
+var (
+	totalConnections = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "gitlab_workhorse_internal_redis_total_connections",
+			Help: "How many connections gitlab-workhorse has opened in total",
+		},
+	)
+	openConnections = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "gitlab_workhorse_internal_redis_open_connections",
+			Help: "How many open connections gitlab-workhorse currently have",
+		},
+	)
+	hitMissCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gitlab_workhorse_internal_redis_cache_hit_miss",
+			Help: "How many redis queries have been completed by gitlab-workhorse, partitioned by hit and miss",
+		},
+		[]string{"status", "token"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		totalConnections,
+		openConnections,
+		hitMissCounter,
+	)
+}
 
 func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
 	if len(urls) == 0 {
@@ -88,9 +121,8 @@ func Configure(cfg *config.RedisConfig) {
 			}
 			if !sentinel.TestRole(c, "master") {
 				return errors.New("Role check failed")
-			} else {
-				return nil
 			}
+			return nil
 		},
 	}
 }
@@ -117,6 +149,11 @@ func GetString(key string) (string, error) {
 	if conn == nil {
 		return "", fmt.Errorf("Not connected to redis")
 	}
-	defer conn.Close()
+	totalConnections.Inc()
+	openConnections.Inc()
+	defer func() {
+		conn.Close()
+		openConnections.Dec()
+	}()
 	return redis.String(conn.Do("GET", key))
 }
