@@ -8,9 +8,10 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-// KeyWatcher holds the information required for a single watch request
-var keyWatcher map[string][]chan bool
-var keyMutex sync.Mutex
+var (
+	keyWatcher = make(map[string][]chan bool)
+	keyMutex   sync.Mutex
+)
 
 const (
 	keyPubEventSet     = "__keyevent@*__:set"
@@ -23,15 +24,8 @@ type KeyChan struct {
 	Chan chan bool
 }
 
-func redisWorker(wg *sync.WaitGroup) {
-	keyWatcher = make(map[string][]chan bool)
-	wg.Done()
-
-	log.Print("redisWorker running")
-
-	conn := Get()
+func redisWorkerInner(conn redis.Conn) {
 	defer conn.Close()
-
 	psc := redis.PubSubConn{Conn: conn}
 	if err := psc.PSubscribe(keyPubEventSet); err != nil {
 		return
@@ -47,7 +41,24 @@ func redisWorker(wg *sync.WaitGroup) {
 		case redis.PMessage:
 			notifyChanWatcher(string(v.Data))
 		case error:
+			return
 		}
+	}
+}
+
+func redisWorker(wg *sync.WaitGroup) {
+	wg.Done()
+
+	log.Print("redisWorker running")
+
+	for {
+		conn, err := redisDialFunc()
+		if err == nil || conn != nil {
+			redisWorkerInner(conn)
+
+		}
+
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -68,17 +79,28 @@ func addKeyChan(kc *KeyChan) {
 	keyWatcher[kc.Key] = append(keyWatcher[kc.Key], kc.Chan)
 }
 
+func innerDelKeyChan(kc *KeyChan, chanList []chan bool) {
+	if len(keyWatcher[kc.Key]) == 1 {
+		delete(keyWatcher, kc.Key)
+		return
+	}
+	for i, c := range chanList {
+		if kc.Chan == c {
+			keyWatcher[kc.Key] = append(chanList[:i], chanList[i+1:]...)
+			break
+		}
+	}
+}
+
 func delKeyChan(kc *KeyChan) {
 	keyMutex.Lock()
 	defer keyMutex.Unlock()
 	if chans, ok := keyWatcher[kc.Key]; ok {
-		for i, c := range chans {
-			if kc.Chan == c {
-				keyWatcher[kc.Key] = append(chans[:i-1], chans[i:]...)
-			}
-		}
+		innerDelKeyChan(kc, chans)
 	}
-
+	if len(keyWatcher[kc.Key]) == 0 {
+		delete(keyWatcher, kc.Key)
+	}
 }
 
 // WaitKey waits for a key to be updated or expired
@@ -89,6 +111,7 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 	}
 
 	addKeyChan(kw)
+	defer delKeyChan(kw)
 
 	val, err := GetString(key)
 	if err != nil || val != value {

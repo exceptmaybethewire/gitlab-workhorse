@@ -13,6 +13,9 @@ import (
 
 func setupPool() (func(), *redigomock.Conn) {
 	conn := redigomock.NewConn()
+	redisDialFunc = func() (redis.Conn, error) {
+		return conn, nil
+	}
 	pool = &redis.Pool{
 		MaxIdle:     2,               // Keep at most X hot connections
 		MaxActive:   0,               // Keep at most X live connections, 0 means unlimited
@@ -43,8 +46,8 @@ func TestConfigureMinimalConfig(t *testing.T) {
 	cfg := &config.RedisConfig{URL: config.TomlURL{}, Password: ""}
 	Configure(cfg)
 	if assert.NotNil(t, pool, "Pool should not be nil") {
-		assert.Equal(t, 5, pool.MaxIdle, "MaxIdle should be 5")
-		assert.Equal(t, 0, pool.MaxActive, "MaxActive should be 0")
+		assert.Equal(t, 1, pool.MaxIdle, "MaxIdle should be 5")
+		assert.Equal(t, 1, pool.MaxActive, "MaxActive should be 0")
 		assert.Equal(t, 3*time.Minute, pool.IdleTimeout, "IdleTimeout should be 50s")
 	}
 	pool = nil
