@@ -26,13 +26,13 @@ ${BUILD_DIR}/_build:
 	tar -cf - --exclude _build --exclude .git . | (cd $@/src/${PKG} && tar -xf -)
 	touch $@
 
-.PHONY: deps
-deps:
+.PHONY: test-deps
+test-deps:
 	go get -d -u github.com/stretchr/testify
 	go get -d -u github.com/rafaeljusto/redigomock
 
 .PHONY: test
-test:	clean-build clean-workhorse all deps
+test:	clean-build clean-workhorse all test-deps
 	go fmt ${PKG}/... | awk '{ print } END { if (NR > 0) { print "Please run go fmt"; exit 1 } }'
 	go test ${PKG}/...
 	@echo SUCCESS

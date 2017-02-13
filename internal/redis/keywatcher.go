@@ -55,10 +55,9 @@ func redisWorker(wg *sync.WaitGroup) {
 		conn, err := redisDialFunc()
 		if err == nil || conn != nil {
 			redisWorkerInner(conn)
-
+		} else {
+			time.Sleep(1 * time.Second)
 		}
-
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -97,9 +96,6 @@ func delKeyChan(kc *KeyChan) {
 	defer keyMutex.Unlock()
 	if chans, ok := keyWatcher[kc.Key]; ok {
 		innerDelKeyChan(kc, chans)
-	}
-	if len(keyWatcher[kc.Key]) == 0 {
-		delete(keyWatcher, kc.Key)
 	}
 }
 

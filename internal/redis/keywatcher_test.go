@@ -52,5 +52,4 @@ func TestWaitKeyChange(t *testing.T) {
 
 	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
 	assert.True(t, val, "Expected value to change")
-
 }
