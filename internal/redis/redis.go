@@ -7,10 +7,35 @@ import (
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 
+	sentinel "github.com/FZambia/go-sentinel"
 	"github.com/garyburd/redigo/redis"
 )
 
 var pool *redis.Pool
+
+func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
+	if len(urls) == 0 {
+		return nil
+	}
+	return &sentinel.Sentinel{
+		Addrs: func(urls []config.TomlURL) []string {
+			var addrs []string
+			for _, url := range urls {
+				addrs = append(addrs, url.URL.String())
+			}
+			return addrs
+		}(urls),
+		MasterName: "mymaster",
+		Dial: func(addr string) (redis.Conn, error) {
+			timeout := 500 * time.Millisecond
+			c, err := redis.DialTimeout("tcp", addr, timeout, timeout, timeout)
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
+		},
+	}
+}
 
 // Configure redis-connection
 func Configure(cfg *config.RedisConfig) {
@@ -29,6 +54,7 @@ func Configure(cfg *config.RedisConfig) {
 	if cfg.ReadTimeout != nil {
 		readTimeout = time.Duration(*cfg.ReadTimeout)
 	}
+	sntnl := sentinelConn(cfg.Sentinel)
 	pool = &redis.Pool{
 		MaxIdle:     maxIdle,         // Keep at most X hot connections
 		MaxActive:   maxActive,       // Keep at most X live connections, 0 means unlimited
@@ -37,6 +63,13 @@ func Configure(cfg *config.RedisConfig) {
 			dopts := []redis.DialOption{redis.DialReadTimeout(readTimeout * time.Second)}
 			if cfg.Password != "" {
 				dopts = append(dopts, redis.DialPassword(cfg.Password))
+			}
+			if sntnl != nil {
+				address, err := sntnl.SentinelAddrs()
+				if err != nil {
+					return nil, err
+				}
+				return redis.Dial("tcp", address[0], dopts)
 			}
 			return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 		},
