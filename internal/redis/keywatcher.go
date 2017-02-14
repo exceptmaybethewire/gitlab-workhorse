@@ -6,12 +6,26 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
 	keyWatcher = make(map[string][]chan bool)
 	keyMutex   sync.Mutex
 )
+
+var (
+	keyWatchers = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "gitlab_workhorse_internal_redis_keywatchers",
+			Help: "The numbers of keys that is being watched by gitlab-workhorse",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(keyWatchers)
+}
 
 const (
 	keyPubEventSet     = "__keyevent@*__:set"
@@ -72,6 +86,7 @@ func notifyChanWatcher(key string) {
 	if chanList, ok := keyWatcher[key]; ok {
 		for _, c := range chanList {
 			c <- true
+			keyWatchers.Dec()
 		}
 		delete(keyWatcher, key)
 	}
@@ -81,16 +96,19 @@ func addKeyChan(kc *KeyChan) {
 	keyMutex.Lock()
 	defer keyMutex.Unlock()
 	keyWatcher[kc.Key] = append(keyWatcher[kc.Key], kc.Chan)
+	keyWatchers.Inc()
 }
 
 func innerDelKeyChan(kc *KeyChan, chanList []chan bool) {
 	if len(keyWatcher[kc.Key]) == 1 {
 		delete(keyWatcher, kc.Key)
+		keyWatchers.Dec()
 		return
 	}
 	for i, c := range chanList {
 		if kc.Chan == c {
 			keyWatcher[kc.Key] = append(chanList[:i], chanList[i+1:]...)
+			keyWatchers.Dec()
 			break
 		}
 	}
