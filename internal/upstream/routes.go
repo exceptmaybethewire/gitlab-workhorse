@@ -33,6 +33,7 @@ type routeEntry struct {
 const (
 	apiPattern        = `^/api/`
 	ciAPIPattern      = `^/ci/api/`
+	geoAPIPattern     = `^/api/v[34]/geo/`
 	gitProjectPattern = `^/([^/]+/){1,}[^/]+\.git/`
 	projectPattern    = `^/([^/]+/){1,}[^/]+/`
 )
@@ -138,6 +139,9 @@ func (u *Upstream) configureRoutes() {
 		// Explicitly proxy API requests
 		route("", apiPattern, proxy),
 		route("", ciAPIPattern, proxy),
+
+		// GitLab Geo API requests
+		route("GET", geoAPIPattern, proxy),
 
 		// Serve assets
 		route(
