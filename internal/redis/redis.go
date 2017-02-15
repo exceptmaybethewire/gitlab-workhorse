@@ -3,7 +3,6 @@ package redis
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
@@ -52,14 +51,12 @@ func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
 	if len(urls) == 0 {
 		return nil
 	}
+	var addrs []string
+	for _, url := range urls {
+		addrs = append(addrs, url.URL.String())
+	}
 	return &sentinel.Sentinel{
-		Addrs: func(urls []config.TomlURL) []string {
-			var addrs []string
-			for _, url := range urls {
-				addrs = append(addrs, url.URL.String())
-			}
-			return addrs
-		}(urls),
+		Addrs:      addrs,
 		MasterName: "mymaster",
 		Dial: func(addr string) (redis.Conn, error) {
 			timeout := 500 * time.Millisecond
@@ -79,19 +76,30 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 	if cfg.ReadTimeout != nil {
 		readTimeout = time.Duration(*cfg.ReadTimeout)
 	}
-	return func() (redis.Conn, error) {
-		dopts := []redis.DialOption{redis.DialReadTimeout(readTimeout)}
-		if cfg.Password != "" {
-			dopts = append(dopts, redis.DialPassword(cfg.Password))
-		}
-		if sntnl != nil {
-			address, err := sntnl.MasterAddr()
+	dopts := []redis.DialOption{redis.DialReadTimeout(readTimeout)}
+	if cfg.Password != "" {
+		dopts = append(dopts, redis.DialPassword(cfg.Password))
+	}
+	if sntnl != nil {
+		return func() (c redis.Conn, err error) {
+			var address string
+			address, err = sntnl.MasterAddr()
 			if err != nil {
-				return nil, err
+				return
 			}
-			return redis.Dial("tcp", address, dopts...)
+			c, err = redis.Dial("tcp", address, dopts...)
+			if err != nil {
+				totalConnections.Inc()
+			}
+			return
 		}
-		return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+	}
+	return func() (c redis.Conn, err error) {
+		c, err = redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+		if err != nil {
+			totalConnections.Inc()
+		}
+		return
 	}
 }
 
@@ -127,14 +135,6 @@ func Configure(cfg *config.RedisConfig) {
 	}
 }
 
-// Process redis subscriptions
-func Process() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go redisWorker(&wg)
-	wg.Wait()
-}
-
 // Get a connection for the Redis-pool
 func Get() redis.Conn {
 	if pool != nil {
@@ -149,7 +149,6 @@ func GetString(key string) (string, error) {
 	if conn == nil {
 		return "", fmt.Errorf("Not connected to redis")
 	}
-	totalConnections.Inc()
 	openConnections.Inc()
 	defer func() {
 		conn.Close()

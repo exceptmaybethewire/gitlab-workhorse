@@ -58,16 +58,19 @@ func redisWorkerInner(conn redis.Conn) {
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.PMessage:
-			notifyChanWatcher(string(v.Data))
+			notifyChanWatchers(string(v.Data))
 		case error:
 			return
 		}
 	}
 }
 
-func redisWorker(wg *sync.WaitGroup) {
-	wg.Done()
+// Process redis subscriptions
+func Process() {
+	go redisWorker()
+}
 
+func redisWorker() {
 	log.Print("redisWorker running")
 
 	for {
@@ -82,7 +85,7 @@ func redisWorker(wg *sync.WaitGroup) {
 	}
 }
 
-func notifyChanWatcher(key string) {
+func notifyChanWatchers(key string) {
 	keyMutex.Lock()
 	defer keyMutex.Unlock()
 	if chanList, ok := keyWatcher[key]; ok {
