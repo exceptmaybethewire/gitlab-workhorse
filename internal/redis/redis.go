@@ -22,7 +22,7 @@ var (
 	totalConnections = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "gitlab_workhorse_internal_redis_total_connections",
-			Help: "How many connections gitlab-workhorse has opened in total",
+			Help: "How many connections gitlab-workhorse has opened in total. Can be used to track Redis connection rate for this process",
 		},
 	)
 	openConnections = prometheus.NewGauge(

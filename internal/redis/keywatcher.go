@@ -18,7 +18,7 @@ var (
 	keyWatchers = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "gitlab_workhorse_internal_redis_keywatchers",
-			Help: "The numbers of keys that is being watched by gitlab-workhorse",
+			Help: "The number of keys that is being watched by gitlab-workhorse",
 		},
 	)
 )
@@ -30,6 +30,8 @@ func init() {
 const (
 	keyPubEventSet     = "__keyevent@*__:set"
 	keyPubEventExpired = "__keyevent@*__:expired"
+
+	redisReconnectWaitTime = 1 * time.Second
 )
 
 // KeyChan holds a key and a channel
@@ -70,12 +72,12 @@ func redisWorker(wg *sync.WaitGroup) {
 
 	for {
 		conn, err := redisDialFunc()
-		if err == nil || conn != nil {
+		if err == nil {
 			totalConnections.Inc()
 			openConnections.Inc()
 			redisWorkerInner(conn)
 		} else {
-			time.Sleep(1 * time.Second)
+			time.Sleep(redisReconnectWaitTime)
 		}
 	}
 }
@@ -99,30 +101,26 @@ func addKeyChan(kc *KeyChan) {
 	keyWatchers.Inc()
 }
 
-func innerDelKeyChan(kc *KeyChan, chanList []chan bool) {
-	if len(keyWatcher[kc.Key]) == 1 {
-		delete(keyWatcher, kc.Key)
-		keyWatchers.Dec()
-		return
-	}
-	for i, c := range chanList {
-		if kc.Chan == c {
-			keyWatcher[kc.Key] = append(chanList[:i], chanList[i+1:]...)
-			keyWatchers.Dec()
-			break
-		}
-	}
-}
-
 func delKeyChan(kc *KeyChan) {
 	keyMutex.Lock()
 	defer keyMutex.Unlock()
 	if chans, ok := keyWatcher[kc.Key]; ok {
-		innerDelKeyChan(kc, chans)
+		for i, c := range chans {
+			if kc.Chan == c {
+				keyWatcher[kc.Key] = append(chans[:i], chans[i+1:]...)
+				keyWatchers.Dec()
+				break
+			}
+		}
+		if len(keyWatcher[kc.Key]) == 0 {
+			delete(keyWatcher, kc.Key)
+		}
 	}
 }
 
 // WaitKey waits for a key to be updated or expired
+//
+// Returns true if the value has changed, otherwise false
 func WaitKey(key, value string, timeout time.Duration) bool {
 	kw := &KeyChan{
 		Key:  key,
@@ -135,18 +133,20 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 	val, err := GetString(key)
 	if err != nil || val != value {
 		if err != nil {
-			log.Printf("poop: %#v\n", err)
+			log.Printf("Failed to get value from Redis: %#v\n", err)
 		}
-		return true // as mentioned, we don't care about the channels...
+		hitMissCounter.WithLabelValues("miss", key).Inc()
+		return true
 	}
 
 	select {
 	case <-kw.Chan:
 		newVal, _ := GetString(key)
+		hitMissCounter.WithLabelValues("miss", key).Inc()
 		return newVal != value
 
 	case <-time.After(timeout):
-		log.Print("timeout...")
+		hitMissCounter.WithLabelValues("hit", key).Inc()
 		return false
 	}
 }
