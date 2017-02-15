@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupPool() (func(), *redigomock.Conn) {
+// Setup a MockPool for Redis
+//
+// Returns a teardown-function and the mock-connection
+func setupMockPool() (func(), *redigomock.Conn) {
 	conn := redigomock.NewConn()
 	redisDialFunc = func() (redis.Conn, error) {
 		return conn, nil
@@ -28,13 +31,6 @@ func setupPool() (func(), *redigomock.Conn) {
 		pool = nil
 		conn = nil
 	}, conn
-}
-
-func mustString(t *testing.T, s string, e error) string {
-	if assert.Nil(t, e, "Expected no error") {
-		return s
-	}
-	return ""
 }
 
 func TestConfigureNoConfig(t *testing.T) {
@@ -77,18 +73,20 @@ func TestGetConnFail(t *testing.T) {
 }
 
 func TestGetConnPass(t *testing.T) {
-	teardown, _ := setupPool()
+	teardown, _ := setupMockPool()
 	defer teardown()
 	conn := Get()
-	if assert.NotNil(t, conn, "Expected `conn` to be a redis.Conn") {
-
-	}
+	assert.NotNil(t, conn, "Expected `conn` to be a redis.Conn")
 }
 
 func TestGetString(t *testing.T) {
-	teardown, conn := setupPool()
+	teardown, conn := setupMockPool()
 	defer teardown()
 	conn.Command("GET", "foobar").Expect("herpderp")
-	s, e := GetString("foobar")
-	assert.Equal(t, "herpderp", mustString(t, s, e), "Expected it to be equal")
+	str, err := GetString("foobar")
+	if assert.Nil(t, err, "Expected `err` to be nil") {
+		var derp string
+		assert.IsType(t, derp, str, "Expected value to be a string")
+		assert.Equal(t, "herpderp", str, "Expected it to be equal")
+	}
 }

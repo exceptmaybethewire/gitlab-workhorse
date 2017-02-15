@@ -25,8 +25,8 @@ func createSubscribeMessage(key string) []interface{} {
 	return values
 }
 
-func TestWaitKeyChange(t *testing.T) {
-	td, mconn := setupPool()
+func TestWaitKeyChanging(t *testing.T) {
+	td, mconn := setupMockPool()
 	defer td()
 
 	// Setup the initial subscription message
