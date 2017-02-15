@@ -17,6 +17,13 @@ var (
 	sntnl *sentinel.Sentinel
 )
 
+const (
+	defaultMaxIdle     = 1
+	defaultMaxActive   = 1
+	defaultReadTimeout = 50 * time.Second
+	defaultIdleTimeout = 3 * time.Minute
+)
+
 var (
 	totalConnections = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -59,6 +66,7 @@ func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
 		Addrs:      addrs,
 		MasterName: "mymaster",
 		Dial: func(addr string) (redis.Conn, error) {
+			// This timeout is (according to the docs) required for Sentinel-support
 			timeout := 500 * time.Millisecond
 			c, err := redis.DialTimeout("tcp", addr, timeout, timeout, timeout)
 			if err != nil {
@@ -72,7 +80,7 @@ func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
 var redisDialFunc func() (redis.Conn, error)
 
 func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
-	readTimeout := time.Duration(50 * time.Second)
+	readTimeout := defaultReadTimeout
 	if cfg.ReadTimeout != nil {
 		readTimeout = time.Duration(*cfg.ReadTimeout)
 	}
@@ -108,20 +116,20 @@ func Configure(cfg *config.RedisConfig) {
 	if cfg == nil {
 		return
 	}
-	maxIdle := 1
+	maxIdle := defaultMaxIdle
 	if cfg.MaxIdle != nil {
 		maxIdle = *cfg.MaxIdle
 	}
-	maxActive := 1
+	maxActive := defaultMaxActive
 	if cfg.MaxActive != nil {
 		maxActive = *cfg.MaxActive
 	}
 	sntnl = sentinelConn(cfg.Sentinel)
 	redisDialFunc = dialFunc(cfg)
 	pool = &redis.Pool{
-		MaxIdle:     maxIdle,         // Keep at most X hot connections
-		MaxActive:   maxActive,       // Keep at most X live connections, 0 means unlimited
-		IdleTimeout: 3 * time.Minute, // 3 Minutes until an unused connection is closed. Newer gonna be used, but it's nice to have just in case
+		MaxIdle:     maxIdle,            // Keep at most X hot connections
+		MaxActive:   maxActive,          // Keep at most X live connections, 0 means unlimited
+		IdleTimeout: defaultIdleTimeout, // X time until an unused connection is closed
 		Dial:        redisDialFunc,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 			if sntnl == nil {
