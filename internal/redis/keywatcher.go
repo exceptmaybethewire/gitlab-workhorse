@@ -40,7 +40,7 @@ type KeyChan struct {
 	Chan chan bool
 }
 
-func redisWorkerInner(conn redis.Conn) {
+func processInner(conn redis.Conn) {
 	defer func() {
 		conn.Close()
 		openConnections.Dec()
@@ -67,22 +67,24 @@ func redisWorkerInner(conn redis.Conn) {
 
 // Process redis subscriptions
 func Process() {
-	go redisWorker()
-}
+	go func() {
+		log.Print("Processing redis queue")
 
-func redisWorker() {
-	log.Print("redisWorker running")
+		currReconnectWaitTime := redisReconnectWaitTime
 
-	for {
-		conn, err := redisDialFunc()
-		if err == nil {
-			totalConnections.Inc()
-			openConnections.Inc()
-			redisWorkerInner(conn)
-		} else {
-			time.Sleep(redisReconnectWaitTime)
+		for {
+			conn, err := redisDialFunc()
+			if err == nil {
+				totalConnections.Inc()
+				openConnections.Inc()
+				processInner(conn)
+				currReconnectWaitTime = redisReconnectWaitTime
+			} else {
+				time.Sleep(currReconnectWaitTime)
+				currReconnectWaitTime = currReconnectWaitTime * 2
+			}
 		}
-	}
+	}()
 }
 
 func notifyChanWatchers(key string) {
@@ -133,8 +135,8 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 	addKeyChan(kw)
 	defer delKeyChan(kw)
 
-	val, err := GetString(key)
-	if err != nil || val != value {
+	redisValue, err := GetString(key)
+	if err != nil || redisValue != value {
 		if err != nil {
 			log.Printf("Failed to get value from Redis: %#v\n", err)
 		}
@@ -144,9 +146,9 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 
 	select {
 	case <-kw.Chan:
-		newVal, _ := GetString(key)
+		redisValue, _ = GetString(key)
 		hitMissCounter.WithLabelValues("miss", key).Inc()
-		return newVal != value
+		return redisValue != value
 
 	case <-time.After(timeout):
 		hitMissCounter.WithLabelValues("hit", key).Inc()
