@@ -79,7 +79,7 @@ func TestGetConnPass(t *testing.T) {
 	assert.NotNil(t, conn, "Expected `conn` to be a redis.Conn")
 }
 
-func TestGetString(t *testing.T) {
+func TestGetStringPass(t *testing.T) {
 	teardown, conn := setupMockPool()
 	defer teardown()
 	conn.Command("GET", "foobar").Expect("herpderp")
@@ -89,4 +89,9 @@ func TestGetString(t *testing.T) {
 		assert.IsType(t, derp, str, "Expected value to be a string")
 		assert.Equal(t, "herpderp", str, "Expected it to be equal")
 	}
+}
+
+func TestGetStringFail(t *testing.T) {
+	_, err := GetString("foobar")
+	assert.NotNil(t, err, "Expected `err` to throw an error")
 }

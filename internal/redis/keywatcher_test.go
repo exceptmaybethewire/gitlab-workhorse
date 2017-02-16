@@ -80,3 +80,30 @@ func TestWaitKeyNotChanging(t *testing.T) {
 	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
 	assert.False(t, val, "Expected value to not change")
 }
+
+func TestWaitKeyAlreadyChanged(t *testing.T) {
+	td, mconn := setupMockPool()
+	defer td()
+
+	// Setup the initial subscription message
+	mconn.Command("PSUBSCRIBE", keyPubEventSet).
+		Expect(createSubscribeMessage(keyPubEventSet))
+	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
+		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("GET", "foobar:10").
+		Expect("herpderp1").
+		Expect("herpderp1")
+	mconn.ReceiveWait = true
+
+	Process()
+
+	// ACTUALLY Fill the buffers
+	go func(mconn *redigomock.Conn) {
+		mconn.ReceiveNow <- true
+		mconn.ReceiveNow <- true
+		mconn.ReceiveNow <- true
+	}(mconn)
+
+	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
+	assert.True(t, val, "Expected value to change")
+}
