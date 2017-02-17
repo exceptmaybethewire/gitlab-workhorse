@@ -89,25 +89,29 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 		dopts = append(dopts, redis.DialPassword(cfg.Password))
 	}
 	if sntnl != nil {
-		return func() (c redis.Conn, err error) {
-			var address string
+		return func() (redis.Conn, error) {
+			var (
+				address string
+				err     error
+				c       redis.Conn
+			)
 			address, err = sntnl.MasterAddr()
 			if err != nil {
-				return
+				return nil, err
 			}
 			c, err = redis.Dial("tcp", address, dopts...)
 			if err != nil {
 				totalConnections.Inc()
 			}
-			return
+			return c, nil
 		}
 	}
-	return func() (c redis.Conn, err error) {
-		c, err = redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+	return func() (redis.Conn, error) {
+		c, err := redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 		if err != nil {
 			totalConnections.Inc()
 		}
-		return
+		return c, nil
 	}
 }
 
@@ -131,15 +135,14 @@ func Configure(cfg *config.RedisConfig) {
 		MaxActive:   maxActive,          // Keep at most X live connections, 0 means unlimited
 		IdleTimeout: defaultIdleTimeout, // X time until an unused connection is closed
 		Dial:        redisDialFunc,
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			if sntnl == nil {
-				return nil
-			}
+	}
+	if sntnl != nil {
+		pool.TestOnBorrow = func(c redis.Conn, t time.Time) error {
 			if !sentinel.TestRole(c, "master") {
 				return errors.New("Role check failed")
 			}
 			return nil
-		},
+		}
 	}
 }
 
