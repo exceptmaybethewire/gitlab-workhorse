@@ -20,7 +20,7 @@ func (u *TomlURL) UnmarshalText(text []byte) error {
 type RedisConfig struct {
 	URL            TomlURL
 	Sentinel       []TomlURL
-	SentinelLaster string
+	SentinelMaster string
 	Password       string
 	ReadTimeout    *int
 	MaxIdle        *int
