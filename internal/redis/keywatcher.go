@@ -135,8 +135,8 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 	addKeyChan(kw)
 	defer delKeyChan(kw)
 
-	redisValue, err := GetString(key)
-	if err != nil || redisValue != value {
+	currentValue, err := GetString(key)
+	if err != nil || currentValue != value {
 		if err != nil {
 			log.Printf("Failed to get value from Redis: %#v\n", err)
 		}
@@ -146,9 +146,9 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 
 	select {
 	case <-kw.Chan:
-		redisValue, _ = GetString(key)
+		currentValue, _ = GetString(key)
 		hitMissCounter.WithLabelValues("miss", key).Inc()
-		return redisValue != value
+		return currentValue != value
 
 	case <-time.After(timeout):
 		hitMissCounter.WithLabelValues("hit", key).Inc()

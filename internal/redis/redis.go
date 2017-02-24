@@ -54,7 +54,7 @@ func init() {
 	)
 }
 
-func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
+func sentinelConn(master string, urls []config.TomlURL) *sentinel.Sentinel {
 	if len(urls) == 0 {
 		return nil
 	}
@@ -64,7 +64,7 @@ func sentinelConn(urls []config.TomlURL) *sentinel.Sentinel {
 	}
 	return &sentinel.Sentinel{
 		Addrs:      addrs,
-		MasterName: "mymaster",
+		MasterName: master,
 		Dial: func(addr string) (redis.Conn, error) {
 			// This timeout is (according to the docs) required for Sentinel-support
 			timeout := 500 * time.Millisecond
@@ -128,7 +128,7 @@ func Configure(cfg *config.RedisConfig) {
 	if cfg.MaxActive != nil {
 		maxActive = *cfg.MaxActive
 	}
-	sntnl = sentinelConn(cfg.Sentinel)
+	sntnl = sentinelConn(cfg.SentinelMaster, cfg.Sentinel)
 	redisDialFunc = dialFunc(cfg)
 	pool = &redis.Pool{
 		MaxIdle:     maxIdle,            // Keep at most X hot connections

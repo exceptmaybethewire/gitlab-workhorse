@@ -18,12 +18,13 @@ func (u *TomlURL) UnmarshalText(text []byte) error {
 }
 
 type RedisConfig struct {
-	URL         TomlURL
-	Sentinel    []TomlURL
-	Password    string
-	ReadTimeout *int
-	MaxIdle     *int
-	MaxActive   *int
+	URL            TomlURL
+	Sentinel       []TomlURL
+	SentinelLaster string
+	Password       string
+	ReadTimeout    *int
+	MaxIdle        *int
+	MaxActive      *int
 }
 
 type Config struct {
