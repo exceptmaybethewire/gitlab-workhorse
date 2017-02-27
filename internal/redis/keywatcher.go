@@ -34,10 +34,9 @@ func init() {
 }
 
 const (
-	keyPubEventSet     = "__keyevent@*__:set"
-	keyPubEventExpired = "__keyevent@*__:expired"
-	promStatusMiss     = "miss"
-	promStatusHit      = "hit"
+	keyPubEventSet = "__keyevent@*__:set"
+	promStatusMiss = "miss"
+	promStatusHit  = "hit"
 )
 
 // KeyChan holds a key and a channel
@@ -56,10 +55,6 @@ func processInner(conn redis.Conn) {
 		return
 	}
 	defer psc.PUnsubscribe(keyPubEventSet)
-	if err := psc.PSubscribe(keyPubEventExpired); err != nil {
-		return
-	}
-	defer psc.PUnsubscribe(keyPubEventExpired)
 
 	for {
 		switch v := psc.Receive().(type) {
@@ -78,6 +73,7 @@ func Process() {
 	log.Print("Processing redis queue")
 
 	for {
+		log.Println("Connecting to redis")
 		conn, err := redisDialFunc()
 		if err == nil {
 			processInner(conn)

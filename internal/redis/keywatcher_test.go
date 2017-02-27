@@ -24,8 +24,16 @@ func createSubscribeMessage(key string) []interface{} {
 		[]byte("1"),
 	}
 }
+func createUnsubscribeMessage(key string) []interface{} {
+	return []interface{}{
+		[]byte("punsubscribe"),
+		[]byte(key),
+		[]byte("1"),
+	}
+}
 
 func TestWatchKeySeenChange(t *testing.T) {
+	t.Log("Seen Change")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -33,8 +41,8 @@ func TestWatchKeySeenChange(t *testing.T) {
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
-		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
+		Expect(createUnsubscribeMessage(keyPubEventSet))
 	mconn.Command("GET", "foobar:10").
 		Expect("something").
 		Expect("somethingelse")
@@ -55,6 +63,7 @@ func TestWatchKeySeenChange(t *testing.T) {
 }
 
 func TestWatchKeyNoChange(t *testing.T) {
+	t.Log("No Change")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -62,8 +71,8 @@ func TestWatchKeyNoChange(t *testing.T) {
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
-		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
+		Expect(createUnsubscribeMessage(keyPubEventSet))
 	mconn.Command("GET", "foobar:10").
 		Expect("something").
 		Expect("something")
@@ -84,6 +93,7 @@ func TestWatchKeyNoChange(t *testing.T) {
 }
 
 func TestWatchKeyTimeout(t *testing.T) {
+	t.Log("Timeout")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -91,8 +101,8 @@ func TestWatchKeyTimeout(t *testing.T) {
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
-		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
+		Expect(createUnsubscribeMessage(keyPubEventSet))
 	mconn.Command("GET", "foobar:10").
 		Expect("something").
 		Expect("something")
@@ -111,6 +121,7 @@ func TestWatchKeyTimeout(t *testing.T) {
 }
 
 func TestWatchKeyAlreadyChanged(t *testing.T) {
+	t.Log("Already Changed")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -118,8 +129,8 @@ func TestWatchKeyAlreadyChanged(t *testing.T) {
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
-		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
+		Expect(createUnsubscribeMessage(keyPubEventSet))
 	mconn.Command("GET", "foobar:10").
 		Expect("somethingelse").
 		Expect("somethingelse")

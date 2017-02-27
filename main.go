@@ -37,7 +37,7 @@ import (
 var Version = "(unknown version)" // Set at build time in the Makefile
 
 var printVersion = flag.Bool("version", false, "Print version and exit")
-var configFile = flag.String("config", "", "File to load configs from")
+var configFile = flag.String("config", "", "TOML file to load config from")
 var listenAddr = flag.String("listenAddr", "localhost:8181", "Listen address for HTTP server")
 var listenNetwork = flag.String("listenNetwork", "tcp", "Listen 'network' (tcp, tcp4, tcp6, unix)")
 var listenUmask = flag.Int("listenUmask", 0, "Umask for Unix socket")
@@ -131,7 +131,7 @@ func main() {
 
 		cfg.Redis = cfgFromFile.Redis
 
-		redis.Configure(cfg.Redis)
+		redis.Configure(cfg.Redis, redis.DefaultDialFunc(cfg.Redis))
 		go redis.Process()
 	}
 
