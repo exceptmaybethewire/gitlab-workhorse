@@ -74,7 +74,7 @@ func sentinelConn(master string, urls []config.TomlURL) *sentinel.Sentinel {
 
 var redisDialFunc func() (redis.Conn, error)
 
-func DefaultDialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
+func dialOptionsBuilder(cfg *config.RedisConfig) []redis.DialOption {
 	readTimeout := defaultReadTimeout
 	if cfg.ReadTimeout != nil {
 		readTimeout = time.Second * time.Duration(*cfg.ReadTimeout)
@@ -83,6 +83,12 @@ func DefaultDialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 	if cfg.Password != "" {
 		dopts = append(dopts, redis.DialPassword(cfg.Password))
 	}
+	return dopts
+}
+
+// DefaultDialFunc should always used. Only exception is for unit-tests.
+func DefaultDialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
+	dopts := dialOptionsBuilder(cfg)
 	innerDial := func() (redis.Conn, error) {
 		return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 	}
