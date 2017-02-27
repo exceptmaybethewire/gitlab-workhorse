@@ -126,7 +126,7 @@ func main() {
 	if *configFile != "" {
 		cfgFromFile, err := config.LoadConfig(*configFile)
 		if err != nil {
-			log.Fatalf("Given config-file could not be loaded [%s]: %v", *configFile, err)
+			log.Fatalf("Given config-file could not be loaded [%q]: %v", *configFile, err)
 		}
 
 		cfg.Redis = cfgFromFile.Redis

@@ -42,6 +42,12 @@
 			"revision": "e8f0f8aaa98dfb6586cbdf2978d511e3199a960a"
 		},
 		{
+			"checksumSHA1": "oIkoHb8+rM5Etur5HhZVY/sDQKQ=",
+			"path": "github.com/jpillora/backoff",
+			"revision": "06c7a16c845dc8e0bf575fafeeca0f5462f5eb4d",
+			"revisionTime": "2017-02-22T00:19:28Z"
+		},
+		{
 			"checksumSHA1": "bKMZjd2wPw13VwoE7mBeSv5djFA=",
 			"comment": "v1.0.0-2-gc12348c",
 			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",

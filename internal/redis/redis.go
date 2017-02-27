@@ -27,22 +27,15 @@ const (
 var (
 	totalConnections = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "gitlab_workhorse_internal_redis_total_connections",
+			Name: "gitlab_workhorse_redis_total_connections",
 			Help: "How many connections gitlab-workhorse has opened in total. Can be used to track Redis connection rate for this process",
 		},
 	)
 	openConnections = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "gitlab_workhorse_internal_redis_open_connections",
+			Name: "gitlab_workhorse_redis_open_connections",
 			Help: "How many open connections gitlab-workhorse currently have",
 		},
-	)
-	hitMissCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "gitlab_workhorse_internal_redis_cache_hit_miss",
-			Help: "How many redis queries have been completed by gitlab-workhorse, partitioned by hit and miss",
-		},
-		[]string{"status", "token"},
 	)
 )
 
@@ -88,27 +81,20 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 	if cfg.Password != "" {
 		dopts = append(dopts, redis.DialPassword(cfg.Password))
 	}
+	innerDial := func() (redis.Conn, error) {
+		return redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+	}
 	if sntnl != nil {
-		return func() (redis.Conn, error) {
-			var (
-				address string
-				err     error
-				c       redis.Conn
-			)
-			address, err = sntnl.MasterAddr()
+		innerDial = func() (redis.Conn, error) {
+			address, err := sntnl.MasterAddr()
 			if err != nil {
 				return nil, err
 			}
-			c, err = redis.Dial("tcp", address, dopts...)
-			if err != nil {
-				totalConnections.Inc()
-				openConnections.Inc()
-			}
-			return c, nil
+			return redis.Dial("tcp", address, dopts...)
 		}
 	}
 	return func() (redis.Conn, error) {
-		c, err := redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
+		c, err := innerDial()
 		if err != nil {
 			totalConnections.Inc()
 			openConnections.Inc()

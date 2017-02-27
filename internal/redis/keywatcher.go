@@ -7,20 +7,32 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
-	keyWatcher = make(map[string][]chan bool)
-	keyMutex   sync.Mutex
-)
-
-var (
+	keyWatcher            = make(map[string][]chan bool)
+	keyMutex              sync.Mutex
+	redisReconnectTimeout = backoff.Backoff{
+		//These are the defaults
+		Min:    100 * time.Millisecond,
+		Max:    60 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
 	keyWatchers = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "gitlab_workhorse_internal_redis_keywatchers",
+			Name: "gitlab_workhorse_keywatcher_keywatchers",
 			Help: "The number of keys that is being watched by gitlab-workhorse",
 		},
+	)
+	hitMissCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gitlab_workhorse_keywatcher_hit_miss",
+			Help: "How many redis queries have been completed by gitlab-workhorse, partitioned by hit and miss",
+		},
+		[]string{"status"},
 	)
 )
 
@@ -31,8 +43,8 @@ func init() {
 const (
 	keyPubEventSet     = "__keyevent@*__:set"
 	keyPubEventExpired = "__keyevent@*__:expired"
-
-	redisReconnectWaitTime = 1 * time.Second
+	promStatusMiss     = "miss"
+	promStatusHit      = "hit"
 )
 
 // KeyChan holds a key and a channel
@@ -71,18 +83,13 @@ func Process() {
 	go func() {
 		log.Print("Processing redis queue")
 
-		currReconnectWaitTime := redisReconnectWaitTime
-
 		for {
 			conn, err := redisDialFunc()
 			if err == nil {
 				processInner(conn)
-				currReconnectWaitTime = redisReconnectWaitTime
+				redisReconnectTimeout.Reset()
 			} else {
-				time.Sleep(currReconnectWaitTime)
-				if currReconnectWaitTime < 60*time.Second {
-					currReconnectWaitTime = currReconnectWaitTime * 2
-				}
+				time.Sleep(redisReconnectTimeout.Duration())
 			}
 		}
 	}()
@@ -153,11 +160,11 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 	defer delKeyChan(kw)
 
 	currentValue, err := GetString(key)
-	if err != nil || currentValue != value {
-		if err != nil {
-			return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
-		}
-		hitMissCounter.WithLabelValues("miss", key).Inc()
+	if err != nil {
+		return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
+	}
+	if currentValue != value {
+		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
 		return WatchKeyStatusImmediately, nil
 	}
 
@@ -168,14 +175,14 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 			return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
 		}
 		if currentValue != value {
-			hitMissCounter.WithLabelValues("miss", key).Inc()
+			hitMissCounter.WithLabelValues(promStatusMiss).Inc()
 			return WatchKeyStatusNotified, nil
 		}
-		hitMissCounter.WithLabelValues("hit", key).Inc()
+		hitMissCounter.WithLabelValues(promStatusHit).Inc()
 		return WatchKeyStatusNotifiedNoChange, nil
 
 	case <-time.After(timeout):
-		hitMissCounter.WithLabelValues("hit", key).Inc()
+		hitMissCounter.WithLabelValues(promStatusHit).Inc()
 		return WatchKeyStatusTimedout, nil
 	}
 }
