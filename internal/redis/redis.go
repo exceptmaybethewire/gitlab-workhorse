@@ -75,7 +75,7 @@ var redisDialFunc func() (redis.Conn, error)
 func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 	readTimeout := defaultReadTimeout
 	if cfg.ReadTimeout != nil {
-		readTimeout = time.Duration(*cfg.ReadTimeout)
+		readTimeout = time.Second * time.Duration(*cfg.ReadTimeout)
 	}
 	dopts := []redis.DialOption{redis.DialReadTimeout(readTimeout)}
 	if cfg.Password != "" {
@@ -95,11 +95,11 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 	}
 	return func() (redis.Conn, error) {
 		c, err := innerDial()
-		if err != nil {
+		if err == nil {
 			totalConnections.Inc()
 			openConnections.Inc()
 		}
-		return c, nil
+		return c, err
 	}
 }
 

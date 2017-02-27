@@ -9,35 +9,35 @@ import (
 )
 
 func createSubscriptionMessage(key, found, data string) []interface{} {
-	values := []interface{}{}
-	values = append(values, interface{}([]byte("pmessage")))
-	values = append(values, interface{}([]byte(key)))
-	values = append(values, interface{}([]byte(found)))
-	values = append(values, interface{}([]byte(data)))
-	return values
+	return []interface{}{
+		[]byte("pmessage"),
+		[]byte(key),
+		[]byte(found),
+		[]byte(data),
+	}
 }
 
 func createSubscribeMessage(key string) []interface{} {
-	values := []interface{}{}
-	values = append(values, interface{}([]byte("psubscribe")))
-	values = append(values, interface{}([]byte(key)))
-	values = append(values, interface{}([]byte("1")))
-	return values
+	return []interface{}{
+		[]byte("psubscribe"),
+		[]byte(key),
+		[]byte("1"),
+	}
 }
 
 func TestWatchKeySeenChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	Process()
+	go Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
 	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
 		Expect(createSubscribeMessage(keyPubEventExpired))
 	mconn.Command("GET", "foobar:10").
-		Expect("herpderp").
-		Expect("herpderp1")
+		Expect("something").
+		Expect("somethingelse")
 	mconn.ReceiveWait = true
 
 	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
@@ -49,7 +49,7 @@ func TestWatchKeySeenChange(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusSeenChange, val, "Expected value to change")
 }
@@ -58,15 +58,15 @@ func TestWatchKeyNoChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	Process()
+	go Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
 	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
 		Expect(createSubscribeMessage(keyPubEventExpired))
 	mconn.Command("GET", "foobar:10").
-		Expect("herpderp").
-		Expect("herpderp")
+		Expect("something").
+		Expect("something")
 	mconn.ReceiveWait = true
 
 	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
@@ -78,7 +78,7 @@ func TestWatchKeyNoChange(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusNoChange, val, "Expected notification without change to value")
 }
@@ -87,15 +87,15 @@ func TestWatchKeyTimeout(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	Process()
+	go Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
 	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
 		Expect(createSubscribeMessage(keyPubEventExpired))
 	mconn.Command("GET", "foobar:10").
-		Expect("herpderp").
-		Expect("herpderp")
+		Expect("something").
+		Expect("something")
 	mconn.ReceiveWait = true
 
 	// ACTUALLY Fill the buffers
@@ -105,7 +105,7 @@ func TestWatchKeyTimeout(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusTimeout, val, "Expected value to not change")
 }
@@ -114,15 +114,15 @@ func TestWatchKeyAlreadyChanged(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	Process()
+	go Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
 	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
 		Expect(createSubscribeMessage(keyPubEventExpired))
 	mconn.Command("GET", "foobar:10").
-		Expect("herpderp1").
-		Expect("herpderp1")
+		Expect("somethingelse").
+		Expect("somethingelse")
 	mconn.ReceiveWait = true
 
 	// ACTUALLY Fill the buffers
@@ -132,7 +132,7 @@ func TestWatchKeyAlreadyChanged(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusAlreadyChanged, val, "Expected value to have already changed")
 }

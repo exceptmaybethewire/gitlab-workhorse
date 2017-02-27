@@ -13,7 +13,7 @@ import (
 
 var (
 	keyWatcher            = make(map[string][]chan bool)
-	keyMutex              sync.Mutex
+	keyWatcherMutex       sync.Mutex
 	redisReconnectTimeout = backoff.Backoff{
 		//These are the defaults
 		Min:    100 * time.Millisecond,
@@ -80,24 +80,22 @@ func processInner(conn redis.Conn) {
 
 // Process redis subscriptions
 func Process() {
-	go func() {
-		log.Print("Processing redis queue")
+	log.Print("Processing redis queue")
 
-		for {
-			conn, err := redisDialFunc()
-			if err == nil {
-				processInner(conn)
-				redisReconnectTimeout.Reset()
-			} else {
-				time.Sleep(redisReconnectTimeout.Duration())
-			}
+	for {
+		conn, err := redisDialFunc()
+		if err == nil {
+			processInner(conn)
+			redisReconnectTimeout.Reset()
+		} else {
+			time.Sleep(redisReconnectTimeout.Duration())
 		}
-	}()
+	}
 }
 
 func notifyChanWatchers(key string) {
-	keyMutex.Lock()
-	defer keyMutex.Unlock()
+	keyWatcherMutex.Lock()
+	defer keyWatcherMutex.Unlock()
 	if chanList, ok := keyWatcher[key]; ok {
 		for _, c := range chanList {
 			c <- true
@@ -108,15 +106,15 @@ func notifyChanWatchers(key string) {
 }
 
 func addKeyChan(kc *KeyChan) {
-	keyMutex.Lock()
-	defer keyMutex.Unlock()
+	keyWatcherMutex.Lock()
+	defer keyWatcherMutex.Unlock()
 	keyWatcher[kc.Key] = append(keyWatcher[kc.Key], kc.Chan)
 	keyWatchers.Inc()
 }
 
 func delKeyChan(kc *KeyChan) {
-	keyMutex.Lock()
-	defer keyMutex.Unlock()
+	keyWatcherMutex.Lock()
+	defer keyWatcherMutex.Unlock()
 	if chans, ok := keyWatcher[kc.Key]; ok {
 		for i, c := range chans {
 			if kc.Chan == c {

@@ -76,7 +76,7 @@ func TestGetConnPass(t *testing.T) {
 	teardown, _ := setupMockPool()
 	defer teardown()
 	conn := Get()
-	assert.NotNil(t, conn, "Expected `conn` to be a redis.Conn")
+	assert.NotNil(t, conn, "Expected `conn` to be non-nil")
 }
 
 func TestGetStringPass(t *testing.T) {
@@ -93,5 +93,5 @@ func TestGetStringPass(t *testing.T) {
 
 func TestGetStringFail(t *testing.T) {
 	_, err := GetString("foobar")
-	assert.NotNil(t, err, "Expected `err` to throw an error")
+	assert.NotNil(t, err, "Expected error when not connected to redis")
 }

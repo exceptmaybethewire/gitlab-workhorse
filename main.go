@@ -126,13 +126,13 @@ func main() {
 	if *configFile != "" {
 		cfgFromFile, err := config.LoadConfig(*configFile)
 		if err != nil {
-			log.Fatalf("Given config-file could not be loaded [%q]: %v", *configFile, err)
+			log.Fatalf("Can not load config file %q: %v", *configFile, err)
 		}
 
 		cfg.Redis = cfgFromFile.Redis
 
 		redis.Configure(cfg.Redis)
-		redis.Process()
+		go redis.Process()
 	}
 
 	up := wrapRaven(upstream.NewUpstream(cfg))
