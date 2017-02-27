@@ -135,14 +135,14 @@ func delKeyChan(kc *KeyChan) {
 type WatchKeyStatus int
 
 const (
-	// WatchKeyStatusFailure is return when there's a failure
-	WatchKeyStatusFailure WatchKeyStatus = iota
-	// WatchKeyStatusTimedout when the function timed out
-	WatchKeyStatusTimedout
-	// WatchKeyStatusImmediately for when the key had already changed
-	WatchKeyStatusImmediately
-	// WatchKeyStatusNotified for when the key changed during the call
-	WatchKeyStatusNotified
+	// WatchKeyStatusTimeout when the function timed out
+	WatchKeyStatusTimeout WatchKeyStatus = iota
+	// WatchKeyStatusAlreadyChanged for when the key had already changed
+	WatchKeyStatusAlreadyChanged
+	// WatchKeyStatusSeenChange for when the key changed during the call
+	WatchKeyStatusSeenChange
+	// WatchKeyStatusNoChange for when the key didn't changed during the call
+	WatchKeyStatusNoChange
 )
 
 // WatchKey waits for a key to be updated or expired
@@ -157,20 +157,28 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 
 	currentValue, err := GetString(key)
 	if err != nil {
-		return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
+		return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
 	}
 	if currentValue != value {
 		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
-		return WatchKeyStatusImmediately, nil
+		return WatchKeyStatusAlreadyChanged, nil
 	}
 
 	select {
 	case <-kw.Chan:
+		currentValue, err = GetString(key)
+		if err != nil {
+			return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
+		}
+		if currentValue == value {
+			hitMissCounter.WithLabelValues(promStatusHit).Inc()
+			return WatchKeyStatusNoChange, nil
+		}
 		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
-		return WatchKeyStatusNotified, nil
+		return WatchKeyStatusSeenChange, nil
 
 	case <-time.After(timeout):
 		hitMissCounter.WithLabelValues(promStatusHit).Inc()
-		return WatchKeyStatusTimedout, nil
+		return WatchKeyStatusTimeout, nil
 	}
 }

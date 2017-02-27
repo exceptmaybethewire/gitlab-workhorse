@@ -25,7 +25,7 @@ func createSubscribeMessage(key string) []interface{} {
 	return values
 }
 
-func TestWatchKeyNotified(t *testing.T) {
+func TestWatchKeySeenChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -51,10 +51,10 @@ func TestWatchKeyNotified(t *testing.T) {
 
 	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
-	assert.Equal(t, WatchKeyStatusNotified, val, "Expected value to change")
+	assert.Equal(t, WatchKeyStatusSeenChange, val, "Expected value to change")
 }
 
-func TestWatchKeyNotifiedNoChange(t *testing.T) {
+func TestWatchKeyNoChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -80,10 +80,10 @@ func TestWatchKeyNotifiedNoChange(t *testing.T) {
 
 	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
-	assert.Equal(t, WatchKeyStatusNotifiedNoChange, val, "Expected notification without change to value")
+	assert.Equal(t, WatchKeyStatusNoChange, val, "Expected notification without change to value")
 }
 
-func TestWatchKeyTimedout(t *testing.T) {
+func TestWatchKeyTimeout(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -107,10 +107,10 @@ func TestWatchKeyTimedout(t *testing.T) {
 
 	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
-	assert.Equal(t, WatchKeyStatusTimedout, val, "Expected value to not change")
+	assert.Equal(t, WatchKeyStatusTimeout, val, "Expected value to not change")
 }
 
-func TestWatchKeyImmediately(t *testing.T) {
+func TestWatchKeyAlreadyChanged(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -134,5 +134,5 @@ func TestWatchKeyImmediately(t *testing.T) {
 
 	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
-	assert.Equal(t, WatchKeyStatusImmediately, val, "Expected value to have already changed")
+	assert.Equal(t, WatchKeyStatusAlreadyChanged, val, "Expected value to have already changed")
 }
