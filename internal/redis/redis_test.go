@@ -29,11 +29,11 @@ func setupMockPool() (func(), *redigomock.Conn) {
 	}
 	return func() {
 		pool = nil
-		conn = nil
 	}, conn
 }
 
 func TestConfigureNoConfig(t *testing.T) {
+	pool = nil
 	Configure(nil)
 	assert.Nil(t, pool, "Pool should be nil")
 }

@@ -25,10 +25,11 @@ func createSubscribeMessage(key string) []interface{} {
 	return values
 }
 
-func TestWaitKeyChanging(t *testing.T) {
+func TestWatchKeyNotified(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
+	Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
@@ -38,8 +39,6 @@ func TestWaitKeyChanging(t *testing.T) {
 		Expect("herpderp").
 		Expect("herpderp1")
 	mconn.ReceiveWait = true
-
-	Process()
 
 	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
 
@@ -50,14 +49,16 @@ func TestWaitKeyChanging(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
-	assert.True(t, val, "Expected value to change")
+	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	assert.NoError(t, err, "Expected no error")
+	assert.Equal(t, WatchKeyStatusNotified, val, "Expected value to change")
 }
 
-func TestWaitKeyNotChanging(t *testing.T) {
+func TestWatchKeyNotifiedNoChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
+	Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
@@ -68,7 +69,7 @@ func TestWaitKeyNotChanging(t *testing.T) {
 		Expect("herpderp")
 	mconn.ReceiveWait = true
 
-	Process()
+	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
 
 	// ACTUALLY Fill the buffers
 	go func(mconn *redigomock.Conn) {
@@ -77,14 +78,43 @@ func TestWaitKeyNotChanging(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
-	assert.False(t, val, "Expected value to not change")
+	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	assert.NoError(t, err, "Expected no error")
+	assert.Equal(t, WatchKeyStatusNotifiedNoChange, val, "Expected notification without change to value")
 }
 
-func TestWaitKeyAlreadyChanged(t *testing.T) {
+func TestWatchKeyTimedout(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
+	Process()
+	// Setup the initial subscription message
+	mconn.Command("PSUBSCRIBE", keyPubEventSet).
+		Expect(createSubscribeMessage(keyPubEventSet))
+	mconn.Command("PSUBSCRIBE", keyPubEventExpired).
+		Expect(createSubscribeMessage(keyPubEventExpired))
+	mconn.Command("GET", "foobar:10").
+		Expect("herpderp").
+		Expect("herpderp")
+	mconn.ReceiveWait = true
+
+	// ACTUALLY Fill the buffers
+	go func(mconn *redigomock.Conn) {
+		mconn.ReceiveNow <- true
+		mconn.ReceiveNow <- true
+		mconn.ReceiveNow <- true
+	}(mconn)
+
+	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	assert.NoError(t, err, "Expected no error")
+	assert.Equal(t, WatchKeyStatusTimedout, val, "Expected value to not change")
+}
+
+func TestWatchKeyImmediately(t *testing.T) {
+	td, mconn := setupMockPool()
+	defer td()
+
+	Process()
 	// Setup the initial subscription message
 	mconn.Command("PSUBSCRIBE", keyPubEventSet).
 		Expect(createSubscribeMessage(keyPubEventSet))
@@ -95,8 +125,6 @@ func TestWaitKeyAlreadyChanged(t *testing.T) {
 		Expect("herpderp1")
 	mconn.ReceiveWait = true
 
-	Process()
-
 	// ACTUALLY Fill the buffers
 	go func(mconn *redigomock.Conn) {
 		mconn.ReceiveNow <- true
@@ -104,6 +132,7 @@ func TestWaitKeyAlreadyChanged(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val := WaitKey("foobar:10", "herpderp", time.Duration(4*time.Second))
-	assert.True(t, val, "Expected value to change")
+	val, err := WatchKey("foobar:10", "herpderp", time.Duration(1*time.Second))
+	assert.NoError(t, err, "Expected no error")
+	assert.Equal(t, WatchKeyStatusImmediately, val, "Expected value to have already changed")
 }

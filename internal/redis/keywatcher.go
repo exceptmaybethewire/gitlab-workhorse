@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -123,10 +124,26 @@ func delKeyChan(kc *KeyChan) {
 	}
 }
 
-// WaitKey waits for a key to be updated or expired
+// WatchKeyStatus is used to tell how WatchKey returned
+type WatchKeyStatus int
+
+const (
+	// WatchKeyStatusFailure is return when there's a failure
+	WatchKeyStatusFailure WatchKeyStatus = iota
+	// WatchKeyStatusNotifiedNoChange for when re-set by Rails
+	WatchKeyStatusNotifiedNoChange
+	// WatchKeyStatusTimedout when the function timed out
+	WatchKeyStatusTimedout
+	// WatchKeyStatusImmediately for when the key had already changed
+	WatchKeyStatusImmediately
+	// WatchKeyStatusNotified for when the key changed during the call
+	WatchKeyStatusNotified
+)
+
+// WatchKey waits for a key to be updated or expired
 //
 // Returns true if the value has changed, otherwise false
-func WaitKey(key, value string, timeout time.Duration) bool {
+func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) {
 	kw := &KeyChan{
 		Key:  key,
 		Chan: make(chan bool, 1),
@@ -138,20 +155,27 @@ func WaitKey(key, value string, timeout time.Duration) bool {
 	currentValue, err := GetString(key)
 	if err != nil || currentValue != value {
 		if err != nil {
-			log.Printf("Failed to get value from Redis: %#v\n", err)
+			return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
 		}
 		hitMissCounter.WithLabelValues("miss", key).Inc()
-		return true
+		return WatchKeyStatusImmediately, nil
 	}
 
 	select {
 	case <-kw.Chan:
-		currentValue, _ = GetString(key)
-		hitMissCounter.WithLabelValues("miss", key).Inc()
-		return currentValue != value
+		currentValue, err = GetString(key)
+		if err != nil {
+			return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
+		}
+		if currentValue != value {
+			hitMissCounter.WithLabelValues("miss", key).Inc()
+			return WatchKeyStatusNotified, nil
+		}
+		hitMissCounter.WithLabelValues("hit", key).Inc()
+		return WatchKeyStatusNotifiedNoChange, nil
 
 	case <-time.After(timeout):
 		hitMissCounter.WithLabelValues("hit", key).Inc()
-		return false
+		return WatchKeyStatusTimedout, nil
 	}
 }
