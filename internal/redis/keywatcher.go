@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	keyWatcher            = make(map[string][]chan bool)
+	keyWatcher            = make(map[string][]chan string)
 	keyWatcherMutex       sync.Mutex
 	redisReconnectTimeout = backoff.Backoff{
 		//These are the defaults
@@ -44,7 +44,7 @@ const (
 // KeyChan holds a key and a channel
 type KeyChan struct {
 	Key  string
-	Chan chan bool
+	Chan chan string
 }
 
 func processInner(conn redis.Conn) {
@@ -97,8 +97,15 @@ func notifyChanWatchers(key string) {
 	keyWatcherMutex.Lock()
 	defer keyWatcherMutex.Unlock()
 	if chanList, ok := keyWatcher[key]; ok {
+		currentValue, err := GetString(key)
+		if err != nil {
+			// How do we handle error here? :D
+			//return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
+		}
+		// NOTE: Because every client will (in most cases) have it's own key,
+		//  this is basically redundant, but also quite cheap for len(chanList) == 1
 		for _, c := range chanList {
-			c <- true
+			c <- currentValue
 			keyWatchers.Dec()
 		}
 		delete(keyWatcher, key)
@@ -148,7 +155,7 @@ const (
 func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) {
 	kw := &KeyChan{
 		Key:  key,
-		Chan: make(chan bool, 1),
+		Chan: make(chan string, 1),
 	}
 
 	addKeyChan(kw)
@@ -163,11 +170,7 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 	}
 
 	select {
-	case <-kw.Chan:
-		currentValue, err = GetString(key)
-		if err != nil {
-			return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
-		}
+	case currentValue := <-kw.Chan:
 		if currentValue == value {
 			return WatchKeyStatusNoChange, nil
 		}
