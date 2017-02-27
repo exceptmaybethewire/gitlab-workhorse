@@ -16,7 +16,7 @@ import (
 // Returns a teardown-function and the mock-connection
 func setupMockPool() (func(), *redigomock.Conn) {
 	conn := redigomock.NewConn()
-	cfg := &config.RedisConfig{URL: config.TomlURL{}, Password: ""}
+	cfg := &config.RedisConfig{URL: config.TomlURL{}}
 	Configure(cfg, func() (redis.Conn, error) {
 		return conn, nil
 	})
@@ -35,9 +35,9 @@ func TestConfigureMinimalConfig(t *testing.T) {
 	cfg := &config.RedisConfig{URL: config.TomlURL{}, Password: ""}
 	Configure(cfg, DefaultDialFunc(cfg))
 	if assert.NotNil(t, pool, "Pool should not be nil") {
-		assert.Equal(t, 1, pool.MaxIdle, "MaxIdle should be 5")
-		assert.Equal(t, 1, pool.MaxActive, "MaxActive should be 0")
-		assert.Equal(t, 3*time.Minute, pool.IdleTimeout, "IdleTimeout should be 50s")
+		assert.Equal(t, 1, pool.MaxIdle)
+		assert.Equal(t, 1, pool.MaxActive)
+		assert.Equal(t, 3*time.Minute, pool.IdleTimeout)
 	}
 	pool = nil
 }
@@ -53,9 +53,9 @@ func TestConfigureFullConfig(t *testing.T) {
 	}
 	Configure(cfg, DefaultDialFunc(cfg))
 	if assert.NotNil(t, pool, "Pool should not be nil") {
-		assert.Equal(t, i, pool.MaxIdle, "MaxIdle should be 4")
-		assert.Equal(t, a, pool.MaxActive, "MaxActive should be 10")
-		assert.Equal(t, 3*time.Minute, pool.IdleTimeout, "IdleTimeout should be 50s")
+		assert.Equal(t, i, pool.MaxIdle)
+		assert.Equal(t, a, pool.MaxActive)
+		assert.Equal(t, 3*time.Minute, pool.IdleTimeout)
 	}
 	pool = nil
 }
@@ -75,16 +75,16 @@ func TestGetConnPass(t *testing.T) {
 func TestGetStringPass(t *testing.T) {
 	teardown, conn := setupMockPool()
 	defer teardown()
-	conn.Command("GET", "foobar").Expect("herpderp")
+	conn.Command("GET", "foobar").Expect("baz")
 	str, err := GetString("foobar")
-	if assert.Nil(t, err, "Expected `err` to be nil") {
-		var derp string
-		assert.IsType(t, derp, str, "Expected value to be a string")
-		assert.Equal(t, "herpderp", str, "Expected it to be equal")
+	if assert.NoError(t, err, "Expected `err` to be nil") {
+		var value string
+		assert.IsType(t, value, str, "Expected value to be a string")
+		assert.Equal(t, "baz", str, "Expected it to be equal")
 	}
 }
 
 func TestGetStringFail(t *testing.T) {
 	_, err := GetString("foobar")
-	assert.NotNil(t, err, "Expected error when not connected to redis")
+	assert.Error(t, err, "Expected error when not connected to redis")
 }
