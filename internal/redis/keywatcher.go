@@ -78,17 +78,14 @@ func Process(reconnect bool) {
 	for {
 		log.Println("Connecting to redis")
 		conn, err := redisDialFunc()
-		if err == nil {
-			processInner(conn)
-			if !reconnect {
-				return
-			}
-			redisReconnectTimeout.Reset()
-		} else {
-			if !reconnect {
-				return
-			}
+		if err != nil && reconnect {
 			time.Sleep(redisReconnectTimeout.Duration())
+			continue
+		}
+		processInner(conn)
+		redisReconnectTimeout.Reset()
+		if !reconnect {
+			return
 		}
 	}
 }
