@@ -43,7 +43,6 @@ func init() {
 	prometheus.MustRegister(
 		totalConnections,
 		openConnections,
-		hitMissCounter,
 	)
 }
 

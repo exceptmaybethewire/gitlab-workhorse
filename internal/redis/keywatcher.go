@@ -27,13 +27,6 @@ var (
 			Help: "The number of keys that is being watched by gitlab-workhorse",
 		},
 	)
-	hitMissCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "gitlab_workhorse_keywatcher_hit_miss",
-			Help: "How many redis queries have been completed by gitlab-workhorse, partitioned by hit and miss",
-		},
-		[]string{"status"},
-	)
 )
 
 func init() {
@@ -79,6 +72,8 @@ func processInner(conn redis.Conn) {
 }
 
 // Process redis subscriptions
+//
+// NOTE: There Can Only Be One!
 func Process() {
 	log.Print("Processing redis queue")
 
@@ -133,13 +128,14 @@ func delKeyChan(kc *KeyChan) {
 type WatchKeyStatus int
 
 const (
-	// WatchKeyStatusTimeout when the function timed out
+	// WatchKeyStatusTimeout is returned when the watch timeout provided by the caller was exceeded
 	WatchKeyStatusTimeout WatchKeyStatus = iota
-	// WatchKeyStatusAlreadyChanged for when the key had already changed
+	// WatchKeyStatusAlreadyChanged is returned when the value passed by the caller was never observed
 	WatchKeyStatusAlreadyChanged
-	// WatchKeyStatusSeenChange for when the key changed during the call
+	// WatchKeyStatusSeenChange is returned when we have seen the value passed by the caller get changed
 	WatchKeyStatusSeenChange
-	// WatchKeyStatusNoChange for when the key didn't changed during the call
+	// WatchKeyStatusNoChange is returned when the function had to return before observing a change.
+	//  Also returned on errors.
 	WatchKeyStatusNoChange
 )
 
@@ -158,7 +154,6 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 		return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
 	}
 	if currentValue != value {
-		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
 		return WatchKeyStatusAlreadyChanged, nil
 	}
 
@@ -169,14 +164,11 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 			return WatchKeyStatusNoChange, fmt.Errorf("Failed to get value from Redis: %#v", err)
 		}
 		if currentValue == value {
-			hitMissCounter.WithLabelValues(promStatusHit).Inc()
 			return WatchKeyStatusNoChange, nil
 		}
-		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
 		return WatchKeyStatusSeenChange, nil
 
 	case <-time.After(timeout):
-		hitMissCounter.WithLabelValues(promStatusHit).Inc()
 		return WatchKeyStatusTimeout, nil
 	}
 }
