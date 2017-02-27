@@ -3,6 +3,7 @@ package redis
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,9 +35,10 @@ func init() {
 }
 
 const (
-	keyPubEventSet = "__keyevent@*__:set"
-	promStatusMiss = "miss"
-	promStatusHit  = "hit"
+	keyPubSpacePrefix = "__keyspace@*__:"
+	keyPubSpaceRunner = keyPubSpacePrefix + "runner:build_queue:*"
+	promStatusMiss    = "miss"
+	promStatusHit     = "hit"
 )
 
 // KeyChan holds a key and a channel
@@ -51,15 +53,16 @@ func processInner(conn redis.Conn) {
 		openConnections.Dec()
 	}()
 	psc := redis.PubSubConn{Conn: conn}
-	if err := psc.PSubscribe(keyPubEventSet); err != nil {
+	if err := psc.PSubscribe(keyPubSpaceRunner); err != nil {
 		return
 	}
-	defer psc.PUnsubscribe(keyPubEventSet)
+	defer psc.PUnsubscribe(keyPubSpaceRunner)
 
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.PMessage:
-			notifyChanWatchers(string(v.Data))
+			key := strings.TrimPrefix(string(v.Channel), keyPubSpacePrefix)
+			notifyChanWatchers(key)
 		case error:
 			return
 		}
@@ -69,7 +72,8 @@ func processInner(conn redis.Conn) {
 // Process redis subscriptions
 //
 // NOTE: There Can Only Be One!
-func Process() {
+// Reconnects is reconnect = true
+func Process(reconnect bool) {
 	log.Print("Processing redis queue")
 
 	for {
@@ -77,8 +81,14 @@ func Process() {
 		conn, err := redisDialFunc()
 		if err == nil {
 			processInner(conn)
+			if !reconnect {
+				return
+			}
 			redisReconnectTimeout.Reset()
 		} else {
+			if !reconnect {
+				return
+			}
 			time.Sleep(redisReconnectTimeout.Duration())
 		}
 	}

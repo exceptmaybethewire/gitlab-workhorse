@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	runnerToken = "10"
+	runnerKey   = "runner:build_queue:" + runnerToken
+	runnerSpace = keyPubSpacePrefix + runnerKey
+)
+
 func createSubscriptionMessage(key, found, data string) []interface{} {
 	return []interface{}{
 		[]byte("pmessage"),
@@ -37,18 +43,18 @@ func TestWatchKeySeenChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	go Process()
+	go Process(false)
 	// Setup the initial subscription message
-	mconn.Command("PSUBSCRIBE", keyPubEventSet).
-		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
-		Expect(createUnsubscribeMessage(keyPubEventSet))
-	mconn.Command("GET", "foobar:10").
+	mconn.Command("PSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createSubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("PUNSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createUnsubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("GET", runnerKey).
 		Expect("something").
 		Expect("somethingelse")
 	mconn.ReceiveWait = true
 
-	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
+	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubSpaceRunner, runnerSpace, "set"))
 
 	// ACTUALLY Fill the buffers
 	go func(mconn *redigomock.Conn) {
@@ -57,7 +63,7 @@ func TestWatchKeySeenChange(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
+	val, err := WatchKey(runnerKey, "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusSeenChange, val, "Expected value to change")
 }
@@ -67,18 +73,18 @@ func TestWatchKeyNoChange(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	go Process()
+	go Process(false)
 	// Setup the initial subscription message
-	mconn.Command("PSUBSCRIBE", keyPubEventSet).
-		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
-		Expect(createUnsubscribeMessage(keyPubEventSet))
-	mconn.Command("GET", "foobar:10").
+	mconn.Command("PSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createSubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("PUNSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createUnsubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("GET", runnerKey).
 		Expect("something").
 		Expect("something")
 	mconn.ReceiveWait = true
 
-	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubEventSet, "__keyevent@0__:set", "foobar:10"))
+	mconn.AddSubscriptionMessage(createSubscriptionMessage(keyPubSpaceRunner, runnerSpace, "set"))
 
 	// ACTUALLY Fill the buffers
 	go func(mconn *redigomock.Conn) {
@@ -87,7 +93,7 @@ func TestWatchKeyNoChange(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
+	val, err := WatchKey(runnerKey, "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusNoChange, val, "Expected notification without change to value")
 }
@@ -97,13 +103,13 @@ func TestWatchKeyTimeout(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	go Process()
+	go Process(false)
 	// Setup the initial subscription message
-	mconn.Command("PSUBSCRIBE", keyPubEventSet).
-		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
-		Expect(createUnsubscribeMessage(keyPubEventSet))
-	mconn.Command("GET", "foobar:10").
+	mconn.Command("PSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createSubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("PUNSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createUnsubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("GET", runnerKey).
 		Expect("something").
 		Expect("something")
 	mconn.ReceiveWait = true
@@ -115,7 +121,7 @@ func TestWatchKeyTimeout(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
+	val, err := WatchKey(runnerKey, "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusTimeout, val, "Expected value to not change")
 }
@@ -125,13 +131,13 @@ func TestWatchKeyAlreadyChanged(t *testing.T) {
 	td, mconn := setupMockPool()
 	defer td()
 
-	go Process()
+	go Process(false)
 	// Setup the initial subscription message
-	mconn.Command("PSUBSCRIBE", keyPubEventSet).
-		Expect(createSubscribeMessage(keyPubEventSet))
-	mconn.Command("PUNSUBSCRIBE", keyPubEventSet).
-		Expect(createUnsubscribeMessage(keyPubEventSet))
-	mconn.Command("GET", "foobar:10").
+	mconn.Command("PSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createSubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("PUNSUBSCRIBE", keyPubSpaceRunner).
+		Expect(createUnsubscribeMessage(keyPubSpaceRunner))
+	mconn.Command("GET", runnerKey).
 		Expect("somethingelse").
 		Expect("somethingelse")
 	mconn.ReceiveWait = true
@@ -143,7 +149,7 @@ func TestWatchKeyAlreadyChanged(t *testing.T) {
 		mconn.ReceiveNow <- true
 	}(mconn)
 
-	val, err := WatchKey("foobar:10", "something", time.Duration(1*time.Second))
+	val, err := WatchKey(runnerKey, "something", time.Duration(1*time.Second))
 	assert.NoError(t, err, "Expected no error")
 	assert.Equal(t, WatchKeyStatusAlreadyChanged, val, "Expected value to have already changed")
 }
