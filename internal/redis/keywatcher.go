@@ -50,7 +50,6 @@ type KeyChan struct {
 func processInner(conn redis.Conn) {
 	defer func() {
 		conn.Close()
-		openConnections.Dec()
 	}()
 	psc := redis.PubSubConn{Conn: conn}
 	if err := psc.PSubscribe(keyPubSpaceRunner); err != nil {

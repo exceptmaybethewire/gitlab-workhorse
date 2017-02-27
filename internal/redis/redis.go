@@ -31,18 +31,11 @@ var (
 			Help: "How many connections gitlab-workhorse has opened in total. Can be used to track Redis connection rate for this process",
 		},
 	)
-	openConnections = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "gitlab_workhorse_redis_open_connections",
-			Help: "How many open connections gitlab-workhorse currently have",
-		},
-	)
 )
 
 func init() {
 	prometheus.MustRegister(
 		totalConnections,
-		openConnections,
 	)
 }
 
@@ -105,7 +98,6 @@ func DefaultDialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 		c, err := innerDial()
 		if err == nil {
 			totalConnections.Inc()
-			openConnections.Inc()
 		}
 		return c, err
 	}
@@ -158,7 +150,6 @@ func GetString(key string) (string, error) {
 	}
 	defer func() {
 		conn.Close()
-		openConnections.Dec()
 	}()
 	return redis.String(conn.Do("GET", key))
 }

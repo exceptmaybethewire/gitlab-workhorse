@@ -39,7 +39,6 @@ func createUnsubscribeMessage(key string) []interface{} {
 }
 
 func TestWatchKeySeenChange(t *testing.T) {
-	t.Log("Seen Change")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -69,7 +68,6 @@ func TestWatchKeySeenChange(t *testing.T) {
 }
 
 func TestWatchKeyNoChange(t *testing.T) {
-	t.Log("No Change")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -99,7 +97,6 @@ func TestWatchKeyNoChange(t *testing.T) {
 }
 
 func TestWatchKeyTimeout(t *testing.T) {
-	t.Log("Timeout")
 	td, mconn := setupMockPool()
 	defer td()
 
@@ -127,7 +124,6 @@ func TestWatchKeyTimeout(t *testing.T) {
 }
 
 func TestWatchKeyAlreadyChanged(t *testing.T) {
-	t.Log("Already Changed")
 	td, mconn := setupMockPool()
 	defer td()
 
