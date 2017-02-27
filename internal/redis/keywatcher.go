@@ -137,8 +137,6 @@ type WatchKeyStatus int
 const (
 	// WatchKeyStatusFailure is return when there's a failure
 	WatchKeyStatusFailure WatchKeyStatus = iota
-	// WatchKeyStatusNotifiedNoChange for when re-set by Rails
-	WatchKeyStatusNotifiedNoChange
 	// WatchKeyStatusTimedout when the function timed out
 	WatchKeyStatusTimedout
 	// WatchKeyStatusImmediately for when the key had already changed
@@ -148,8 +146,6 @@ const (
 )
 
 // WatchKey waits for a key to be updated or expired
-//
-// Returns true if the value has changed, otherwise false
 func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) {
 	kw := &KeyChan{
 		Key:  key,
@@ -170,16 +166,8 @@ func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) 
 
 	select {
 	case <-kw.Chan:
-		currentValue, err = GetString(key)
-		if err != nil {
-			return WatchKeyStatusFailure, fmt.Errorf("Failed to get value from Redis: %#v", err)
-		}
-		if currentValue != value {
-			hitMissCounter.WithLabelValues(promStatusMiss).Inc()
-			return WatchKeyStatusNotified, nil
-		}
-		hitMissCounter.WithLabelValues(promStatusHit).Inc()
-		return WatchKeyStatusNotifiedNoChange, nil
+		hitMissCounter.WithLabelValues(promStatusMiss).Inc()
+		return WatchKeyStatusNotified, nil
 
 	case <-time.After(timeout):
 		hitMissCounter.WithLabelValues(promStatusHit).Inc()
