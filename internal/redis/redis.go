@@ -102,6 +102,7 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 			c, err = redis.Dial("tcp", address, dopts...)
 			if err != nil {
 				totalConnections.Inc()
+				openConnections.Inc()
 			}
 			return c, nil
 		}
@@ -110,6 +111,7 @@ func dialFunc(cfg *config.RedisConfig) func() (redis.Conn, error) {
 		c, err := redis.Dial(cfg.URL.Scheme, cfg.URL.Host, dopts...)
 		if err != nil {
 			totalConnections.Inc()
+			openConnections.Inc()
 		}
 		return c, nil
 	}
@@ -160,7 +162,6 @@ func GetString(key string) (string, error) {
 	if conn == nil {
 		return "", fmt.Errorf("Not connected to redis")
 	}
-	openConnections.Inc()
 	defer func() {
 		conn.Close()
 		openConnections.Dec()

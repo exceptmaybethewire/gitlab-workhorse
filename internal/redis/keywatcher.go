@@ -76,13 +76,13 @@ func Process() {
 		for {
 			conn, err := redisDialFunc()
 			if err == nil {
-				totalConnections.Inc()
-				openConnections.Inc()
 				processInner(conn)
 				currReconnectWaitTime = redisReconnectWaitTime
 			} else {
 				time.Sleep(currReconnectWaitTime)
-				currReconnectWaitTime = currReconnectWaitTime * 2
+				if currReconnectWaitTime < 60*time.Second {
+					currReconnectWaitTime = currReconnectWaitTime * 2
+				}
 			}
 		}
 	}()
