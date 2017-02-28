@@ -92,6 +92,18 @@
 			"revision": "abf152e5f3e97f2fafac028d2cc06c1feb87ffa5"
 		},
 		{
+			"checksumSHA1": "UoEPi3qWhaKl6FW5AnTYDvlAIBg=",
+			"path": "github.com/rafaeljusto/redigomock",
+			"revision": "46f70867da7b79c74c21ef022c4a47f138af3d27",
+			"revisionTime": "2017-01-16T09:20:13Z"
+		},
+		{
+			"checksumSHA1": "hIEmcd7hIDqO/xWSp1rJJHd0TpE=",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "18a02ba4a312f95da08ff4cfc0055750ce50ae9e",
+			"revisionTime": "2016-11-17T07:43:51Z"
+		},
+		{
 			"checksumSHA1": "DIHbjVauqs8UF9Mu5cAS1gS6y70=",
 			"comment": "v0.2.0",
 			"path": "gitlab.com/gitlab-org/gitaly/protos/go",
