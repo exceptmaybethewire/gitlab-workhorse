@@ -14,15 +14,15 @@ import (
 // Setup a MockPool for Redis
 //
 // Returns a teardown-function and the mock-connection
-func setupMockPool() (func(), *redigomock.Conn) {
+func setupMockPool() (*redigomock.Conn, func()) {
 	conn := redigomock.NewConn()
 	cfg := &config.RedisConfig{URL: config.TomlURL{}}
 	Configure(cfg, func() (redis.Conn, error) {
 		return conn, nil
 	})
-	return func() {
+	return conn, func() {
 		pool = nil
-	}, conn
+	}
 }
 
 func TestConfigureNoConfig(t *testing.T) {
@@ -66,14 +66,14 @@ func TestGetConnFail(t *testing.T) {
 }
 
 func TestGetConnPass(t *testing.T) {
-	teardown, _ := setupMockPool()
+	_, teardown := setupMockPool()
 	defer teardown()
 	conn := Get()
 	assert.NotNil(t, conn, "Expected `conn` to be non-nil")
 }
 
 func TestGetStringPass(t *testing.T) {
-	teardown, conn := setupMockPool()
+	conn, teardown := setupMockPool()
 	defer teardown()
 	conn.Command("GET", "foobar").Expect("baz")
 	str, err := GetString("foobar")
