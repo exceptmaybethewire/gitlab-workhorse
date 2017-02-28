@@ -3,7 +3,6 @@ package redis
 import (
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,10 +34,7 @@ func init() {
 }
 
 const (
-	keyPubSpacePrefix = "__keyspace@*__:"
-	keyPubSpaceRunner = keyPubSpacePrefix + "runner:build_queue:*"
-	promStatusMiss    = "miss"
-	promStatusHit     = "hit"
+	keyPubSpaceRunner = "runner:build_queue_notifications"
 )
 
 // KeyChan holds a key and a channel
@@ -50,16 +46,15 @@ type KeyChan struct {
 func processInner(conn redis.Conn) {
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
-	if err := psc.PSubscribe(keyPubSpaceRunner); err != nil {
+	if err := psc.Subscribe(keyPubSpaceRunner); err != nil {
 		return
 	}
-	defer psc.PUnsubscribe(keyPubSpaceRunner)
+	defer psc.Unsubscribe(keyPubSpaceRunner)
 
 	for {
 		switch v := psc.Receive().(type) {
-		case redis.PMessage:
-			key := strings.TrimPrefix(string(v.Channel), keyPubSpacePrefix)
-			notifyChanWatchers(key)
+		case redis.Message:
+			notifyChanWatchers(string(v.Data))
 		case error:
 			return
 		}
