@@ -12,13 +12,32 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/redis"
+	"io/ioutil"
 )
 
-const upstreamResponseCode = 999
+const (
+	dataWithTokenAndLastUpdate             = `{"token":"token","last_update":"last_update"}`
+	dataWithTokenOnlyReturn204             = `{"token":"token","return":"204"}`
+	dataWithTokenOnlyReturn204NoLastUpdate = `{"token":"token","return":"204-no-last-update"}`
+	dataWithValidJson                      = `{}`
+	upstreamResponseCode                   = 999
+)
 
 func echoRequest(rw http.ResponseWriter, req *http.Request) {
-	rw.WriteHeader(upstreamResponseCode)
-	io.Copy(rw, req.Body)
+	body, _ := ioutil.ReadAll(req.Body)
+
+	switch string(body) {
+	case dataWithTokenOnlyReturn204:
+		rw.Header().Set(runnerBuildQueueHeaderLastUpdate, "new-update")
+		rw.WriteHeader(http.StatusNoContent)
+
+	case dataWithTokenOnlyReturn204NoLastUpdate:
+		rw.WriteHeader(http.StatusNoContent)
+
+	default:
+		rw.WriteHeader(upstreamResponseCode)
+		io.Copy(rw, req.Body)
+	}
 }
 
 var echoRequestFunc = http.HandlerFunc(echoRequest)
@@ -56,18 +75,11 @@ func TestRegisterHandlerInvalidJsonPayload(t *testing.T) {
 }
 
 func TestRegisterHandlerMissingData(t *testing.T) {
-	testCases := []string{
-		`{"token":"token"}`,
-		`{"last_update":"data"}`,
-	}
-
-	for _, testCase := range testCases {
-		expectHandler(t, testCase, "application/json", upstreamResponseCode,
-			"fails on argument validation and proxies request to upstream")
-	}
+	expectHandler(t, dataWithValidJson, "application/json", upstreamResponseCode,
+		"fails on argument validation and proxies request to upstream")
 }
 
-func expectWatcherToBeExecuted(t *testing.T, watchKeyStatus redis.WatchKeyStatus, watchKeyError error,
+func expectWatcherToBeExecuted(t *testing.T, data string, watchKeyStatus redis.WatchKeyStatus, watchKeyError error,
 	httpStatus int, msgAndArgs ...interface{}) {
 	executed := false
 	watchKeyHandler := func(key, value string, timeout time.Duration) (redis.WatchKeyStatus, error) {
@@ -75,33 +87,57 @@ func expectWatcherToBeExecuted(t *testing.T, watchKeyStatus redis.WatchKeyStatus
 		return watchKeyStatus, watchKeyError
 	}
 
-	parsableData := `{"token":"token","last_update":"last_update"}`
-
-	expectHandlerWithWatcher(t, watchKeyHandler, parsableData, "application/json", httpStatus, msgAndArgs...)
+	expectHandlerWithWatcher(t, watchKeyHandler, data, "application/json", httpStatus, msgAndArgs...)
 	assert.True(t, executed, msgAndArgs...)
 }
 
+func expectWatcherToNotBeExecuted(t *testing.T, data string, httpStatus int, msgAndArgs ...interface{}) {
+	executed := false
+	watchKeyHandler := func(key, value string, timeout time.Duration) (redis.WatchKeyStatus, error) {
+		executed = true
+		return redis.WatchKeyStatusNoChange, errors.New("should not be executed")
+	}
+
+	expectHandlerWithWatcher(t, watchKeyHandler, data, "application/json", httpStatus, msgAndArgs...)
+	assert.False(t, executed, msgAndArgs...)
+}
+
+func TestRegisterHandlerHijackerWithInvalidData(t *testing.T) {
+	expectHandler(t, dataWithValidJson, "application/json", upstreamResponseCode,
+		"proxies data to upstream")
+}
+
+func TestRegisterHandlerHijackerFor204(t *testing.T) {
+	expectWatcherToBeExecuted(t, dataWithTokenOnlyReturn204, redis.WatchKeyStatusNoChange, nil,
+		http.StatusNoContent, "proxies the same response")
+}
+
+func TestRegisterHandlerHijackerFor204NoLastUpdate(t *testing.T) {
+	expectWatcherToNotBeExecuted(t, dataWithTokenOnlyReturn204NoLastUpdate,
+		http.StatusNoContent, "proxies the same response")
+}
+
 func TestRegisterHandlerWatcherError(t *testing.T) {
-	expectWatcherToBeExecuted(t, redis.WatchKeyStatusNoChange, errors.New("redis connection"),
+	expectWatcherToBeExecuted(t, dataWithTokenAndLastUpdate, redis.WatchKeyStatusNoChange, errors.New("redis connection"),
 		upstreamResponseCode, "proxies data to upstream")
 }
 
 func TestRegisterHandlerWatcherAlreadyChanged(t *testing.T) {
-	expectWatcherToBeExecuted(t, redis.WatchKeyStatusAlreadyChanged, nil,
+	expectWatcherToBeExecuted(t, dataWithTokenAndLastUpdate, redis.WatchKeyStatusAlreadyChanged, nil,
 		upstreamResponseCode, "proxies data to upstream")
 }
 
 func TestRegisterHandlerWatcherSeenChange(t *testing.T) {
-	expectWatcherToBeExecuted(t, redis.WatchKeyStatusSeenChange, nil,
+	expectWatcherToBeExecuted(t, dataWithTokenAndLastUpdate, redis.WatchKeyStatusSeenChange, nil,
 		http.StatusNoContent)
 }
 
 func TestRegisterHandlerWatcherTimeout(t *testing.T) {
-	expectWatcherToBeExecuted(t, redis.WatchKeyStatusTimeout, nil,
+	expectWatcherToBeExecuted(t, dataWithTokenAndLastUpdate, redis.WatchKeyStatusTimeout, nil,
 		http.StatusNoContent)
 }
 
 func TestRegisterHandlerWatcherNoChange(t *testing.T) {
-	expectWatcherToBeExecuted(t, redis.WatchKeyStatusNoChange, nil,
+	expectWatcherToBeExecuted(t, dataWithTokenAndLastUpdate, redis.WatchKeyStatusNoChange, nil,
 		http.StatusNoContent)
 }

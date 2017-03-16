@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,10 +13,11 @@ import (
 )
 
 const (
-	maxRegisterBodySize         = 32 * 1024
-	runnerBuildQueue            = "runner:build_queue:"
-	runnerBuildQueueHeaderKey   = "Gitlab-Ci-Builds-Polling"
-	runnerBuildQueueHeaderValue = "yes"
+	maxRegisterBodySize              = 32 * 1024
+	runnerBuildQueue                 = "runner:build_queue:"
+	runnerBuildQueueHeaderKey        = "Gitlab-Ci-Builds-Polling"
+	runnerBuildQueueHeaderValue      = "yes"
+	runnerBuildQueueHeaderLastUpdate = "X-GitLab-Last-Update"
 )
 
 var (
@@ -40,7 +42,9 @@ var (
 
 	registerHandlerBodyReadErrors         = registerHandlerRequests.WithLabelValues("body-read-error")
 	registerHandlerBodyParseErrors        = registerHandlerRequests.WithLabelValues("body-parse-error")
-	registerHandlerMissingValues          = registerHandlerRequests.WithLabelValues("missing-values")
+	registerHandlerMissingToken           = registerHandlerRequests.WithLabelValues("missing-token")
+	registerHandlerMissingUpdate          = registerHandlerRequests.WithLabelValues("missing-update")
+	registerHandlerHijacked               = registerHandlerRequests.WithLabelValues("hijacked")
 	registerHandlerWatchErrors            = registerHandlerRequests.WithLabelValues("watch-error")
 	registerHandlerAlreadyChangedRequests = registerHandlerRequests.WithLabelValues("already-changed")
 	registerHandlerSeenChangeRequests     = registerHandlerRequests.WithLabelValues("seen-change")
@@ -100,6 +104,38 @@ func watchForRunnerChange(watchHandler WatchKeyHandler, token, lastUpdate string
 	return watchHandler(runnerBuildQueue+token, lastUpdate, duration)
 }
 
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
+
+func hijackRegisterResponse(h http.Handler, w http.ResponseWriter, r *http.Request, lastUpdate *string) bool {
+	recorder := httptest.NewRecorder()
+	proxyRegisterRequest(h, recorder, r)
+
+	if recorder.Code == 0 {
+		helper.Fail500(w, r, errors.New("request not proxied"))
+		return false
+	}
+
+	// Check if request response is 204 and read the header
+	if recorder.Code == http.StatusNoContent {
+		*lastUpdate = recorder.Header().Get(runnerBuildQueueHeaderLastUpdate)
+		if *lastUpdate != "" {
+			return true
+		}
+	}
+
+	// Copy recorded response back to application as we cannot "hijack" the logic
+	copyHeader(w.Header(), recorder.Header())
+	w.WriteHeader(recorder.Code)
+	recorder.Body.WriteTo(w)
+	return false
+}
+
 func RegisterHandler(h http.Handler, watchHandler WatchKeyHandler, pollingDuration time.Duration) http.Handler {
 	if pollingDuration == 0 {
 		return h
@@ -124,10 +160,20 @@ func RegisterHandler(h http.Handler, watchHandler WatchKeyHandler, pollingDurati
 			return
 		}
 
-		if runnerRequest.Token == "" || runnerRequest.LastUpdate == "" {
-			registerHandlerMissingValues.Inc()
+		if runnerRequest.Token == "" {
+			registerHandlerMissingToken.Inc()
 			proxyRegisterRequest(h, w, newRequest)
 			return
+		}
+
+		if runnerRequest.LastUpdate == "" {
+			if !hijackRegisterResponse(h, w, newRequest, &runnerRequest.LastUpdate) {
+				registerHandlerMissingUpdate.Inc()
+				return
+			}
+
+			registerHandlerHijacked.Inc()
+			newRequest = helper.CloneRequestWithNewBody(r, requestBody)
 		}
 
 		result, err := watchForRunnerChange(watchHandler, runnerRequest.Token,
