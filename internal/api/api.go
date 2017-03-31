@@ -83,6 +83,10 @@ type Response struct {
 	// TmpPath is the path where we should store temporary files
 	// This is set by authorization middleware
 	TempPath string
+	// UploadURL is the temporary URL to which upload the first found file
+	UploadURL string
+	// DeleteURL is the temporary URL to call which will delete uploaded data
+	DeleteURL string
 	// Archive is the path where the artifacts archive is stored
 	Archive string `json:"archive"`
 	// Entry is a filename inside the archive point to file that needs to be extracted

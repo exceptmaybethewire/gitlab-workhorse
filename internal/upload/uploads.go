@@ -10,6 +10,12 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
+type FileUploadsConfig struct {
+	TempPath string
+	UploadURL string
+	DeleteURL string
+}
+
 // These methods are allowed to have thread-unsafe implementations.
 type MultipartFormProcessor interface {
 	ProcessFile(formName, fileName string, writer *multipart.Writer) error
@@ -18,8 +24,8 @@ type MultipartFormProcessor interface {
 	Name() string
 }
 
-func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, tempPath string, filter MultipartFormProcessor) {
-	if tempPath == "" {
+func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, config FileUploadsConfig, filter MultipartFormProcessor) {
+	if config.TempPath == "" {
 		helper.Fail500(w, r, fmt.Errorf("handleFileUploads: tempPath empty"))
 		return
 	}
@@ -29,7 +35,7 @@ func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, t
 	defer writer.Close()
 
 	// Rewrite multipart form data
-	cleanup, err := rewriteFormFilesFromMultipart(r, writer, tempPath, filter)
+	cleanup, err := rewriteFormFilesFromMultipart(r, writer, config, filter)
 	if err != nil {
 		if err == http.ErrNotMultipart {
 			h.ServeHTTP(w, r)
