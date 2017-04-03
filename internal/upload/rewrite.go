@@ -54,21 +54,6 @@ func init() {
 	prometheus.MustRegister(multipartFiles)
 }
 
-func deleteRemoteFile(deleteUrl string) error {
-	req, err := http.NewRequest("DELETE", deleteUrl, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("deleteFile: delete of: %v failed with: %d %s", deleteUrl, resp.StatusCode, resp.Status)
-	}
-	return nil
-}
-
 func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, config FileUploadsConfig, filter MultipartFormProcessor) (cleanup func(), err error) {
 	// Create multipart reader
 	reader, err := r.MultipartReader()
@@ -91,9 +76,6 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, co
 	cleanup = func() {
 		for _, dir := range rew.directories {
 			os.RemoveAll(dir)
-		}
-		if rew.config.DeleteURL != "" {
-			deleteRemoteFile(rew.config.DeleteURL)
 		}
 	}
 
@@ -153,9 +135,22 @@ func (rew *rewriter) uploadFile(name string, file io.Writer, part *multipart.Par
 		written, err = io.Copy(writer, part)
 	}()
 
-	rew.writer.WriteField(name+".uploaded", rew.config.UploadURL)
+	rew.writer.WriteField(name+".upload_path", rew.config.UploadPath)
 
-	resp, err := http.Post(rew.config.UploadURL, "application/stream", pr)
+	println(part.Header)
+
+	req, err := http.NewRequest("PUT", rew.config.UploadURL, pr)
+	if err != nil {
+		return 0, err
+	}
+	req.ContentLength = -1
+	req.Header.Set("Content-Type", "application/octet-stream")
+	//req.ContentLength, err = strconv.ParseInt(part.Header.Get("Content-Length"), 10, 0)
+	//if err != nil {
+	//	return 0, err
+	//}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("uploadFile: upload file to: %v failed with: %v", rew.config.UploadURL, err)
 	}

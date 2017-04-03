@@ -92,7 +92,7 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 		config := upload.FileUploadsConfig{
 			TempPath: a.TempPath,
 			UploadURL: a.UploadURL,
-			DeleteURL: a.DeleteURL,
+			UploadPath: a.UploadPath,
 		}
 
 		upload.HandleFileUploads(w, r, h, config, mg)

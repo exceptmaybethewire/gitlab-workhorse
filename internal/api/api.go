@@ -85,8 +85,8 @@ type Response struct {
 	TempPath string
 	// UploadURL is the temporary URL to which upload the first found file
 	UploadURL string
-	// DeleteURL is the temporary URL to call which will delete uploaded data
-	DeleteURL string
+	// UploadPath is a path where the upload is stored
+	UploadPath string
 	// Archive is the path where the artifacts archive is stored
 	Archive string `json:"archive"`
 	// Entry is a filename inside the archive point to file that needs to be extracted

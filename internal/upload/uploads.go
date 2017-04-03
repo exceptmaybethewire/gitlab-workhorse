@@ -13,7 +13,7 @@ import (
 type FileUploadsConfig struct {
 	TempPath string
 	UploadURL string
-	DeleteURL string
+	UploadPath string
 }
 
 // These methods are allowed to have thread-unsafe implementations.
