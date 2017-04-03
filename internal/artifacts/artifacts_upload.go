@@ -89,12 +89,6 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 		mg := &artifactsUploadProcessor{TempPath: a.TempPath}
 		defer mg.Cleanup()
 
-		config := upload.FileUploadsConfig{
-			TempPath: a.TempPath,
-			UploadURL: a.UploadURL,
-			UploadPath: a.UploadPath,
-		}
-
-		upload.HandleFileUploads(w, r, h, config, mg)
+		upload.HandleFileUploads(w, r, h, a.TempPath, mg)
 	}, "/authorize")
 }

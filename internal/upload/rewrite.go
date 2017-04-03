@@ -45,7 +45,6 @@ type rewriter struct {
 	filter      MultipartFormProcessor
 	directories []string
 	config      FileUploadsConfig
-	fileUploaded bool
 }
 
 func init() {

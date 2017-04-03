@@ -25,8 +25,7 @@ type MultipartClaims struct {
 func Accelerate(tempDir string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s := &savedFileTracker{request: r}
-		config := FileUploadsConfig{TempPath: tempDir}
-		HandleFileUploads(w, r, h, config, s)
+		HandleFileUploads(w, r, h, tempDir, s)
 	})
 }
 
