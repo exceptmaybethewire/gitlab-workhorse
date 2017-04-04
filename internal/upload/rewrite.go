@@ -42,9 +42,9 @@ var (
 
 type rewriter struct {
 	writer      *multipart.Writer
+	tempPath    string
 	filter      MultipartFormProcessor
 	directories []string
-	config      FileUploadsConfig
 }
 
 func init() {
@@ -53,7 +53,7 @@ func init() {
 	prometheus.MustRegister(multipartFiles)
 }
 
-func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, config FileUploadsConfig, filter MultipartFormProcessor) (cleanup func(), err error) {
+func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, tempPath string, filter MultipartFormProcessor) (cleanup func(), err error) {
 	// Create multipart reader
 	reader, err := r.MultipartReader()
 	if err != nil {
@@ -68,8 +68,8 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, co
 
 	rew := &rewriter{
 		writer:   writer,
+		tempPath: tempPath,
 		filter:   filter,
-		config:   config,
 	}
 
 	cleanup = func() {
@@ -115,53 +115,6 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, co
 	return cleanup, nil
 }
 
-func (rew *rewriter) uploadFile(name string, file io.Writer, part *multipart.Part) (int64, error) {
-	if rew.fileUploaded {
-		return 0, fmt.Errorf("rewriteFormFilesFromMultipart: only single file can be uploaded: %v")
-	}
-	rew.fileUploaded = true
-
-	pr, pw := io.Pipe()
-	defer pr.Close()
-
-	writer := io.MultiWriter(file, pw)
-
-	var written int64
-	go func() {
-		// copy data to output
-		var err error
-		defer pw.CloseWithError(err)
-		written, err = io.Copy(writer, part)
-	}()
-
-	rew.writer.WriteField(name+".upload_path", rew.config.UploadPath)
-
-	println(part.Header)
-
-	req, err := http.NewRequest("PUT", rew.config.UploadURL, pr)
-	if err != nil {
-		return 0, err
-	}
-	req.ContentLength = -1
-	req.Header.Set("Content-Type", "application/octet-stream")
-	//req.ContentLength, err = strconv.ParseInt(part.Header.Get("Content-Length"), 10, 0)
-	//if err != nil {
-	//	return 0, err
-	//}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("uploadFile: upload file to: %v failed with: %v", rew.config.UploadURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("uploadFile: upload file to: %v failed with: %d %s", rew.config.UploadURL, resp.StatusCode, resp.Status)
-	}
-
-	return written, nil
-}
-
 func (rew *rewriter) handleFilePart(name string, p *multipart.Part) error {
 	multipartFiles.WithLabelValues(rew.filter.Name()).Inc()
 
@@ -172,11 +125,11 @@ func (rew *rewriter) handleFilePart(name string, p *multipart.Part) error {
 	}
 
 	// Create temporary directory where the uploaded file will be stored
-	if err := os.MkdirAll(rew.config.TempPath, 0700); err != nil {
+	if err := os.MkdirAll(rew.tempPath, 0700); err != nil {
 		return fmt.Errorf("mkdir for tempfile: %v", err)
 	}
 
-	tempDir, err := ioutil.TempDir(rew.config.TempPath, "multipart-")
+	tempDir, err := ioutil.TempDir(rew.tempPath, "multipart-")
 	if err != nil {
 		return fmt.Errorf("create tempdir: %v", err)
 	}
@@ -192,13 +145,7 @@ func (rew *rewriter) handleFilePart(name string, p *multipart.Part) error {
 	rew.writer.WriteField(name+".path", file.Name())
 	rew.writer.WriteField(name+".name", filename)
 
-	var written int64
-	if rew.config.UploadURL != "" {
-		written, err = rew.uploadFile(name, file, p)
-	} else {
-		written, err = io.Copy(file, p)
-	}
-
+	written, err := io.Copy(file, p)
 	if err != nil {
 		return fmt.Errorf("copy from multipart to tempfile: %v", err)
 	}

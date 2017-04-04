@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -17,7 +18,71 @@ import (
 
 type artifactsUploadProcessor struct {
 	TempPath     string
+	UploadURL    string
+	UploadPath   string
 	metadataFile string
+	uploaded     bool
+}
+
+func (a *artifactsUploadProcessor) generateMetadata(fileName string, metadataFile io.Writer) error {
+	// Generate metadata and save to file
+	zipMd := exec.Command("gitlab-zip-metadata", fileName)
+	zipMd.Stderr = os.Stderr
+	zipMd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	zipMd.Stdout = metadataFile
+
+	if err := zipMd.Start(); err != nil {
+		return err
+	}
+	defer helper.CleanUpProcessGroup(zipMd)
+	if err := zipMd.Wait(); err != nil {
+		if st, ok := helper.ExitStatus(err); ok && st == zipartifacts.StatusNotZip {
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (a *artifactsUploadProcessor) uploadFile(formName, fileName string, writer *multipart.Writer) error {
+	if a.UploadURL == "" || a.uploaded {
+		return nil
+	}
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+	}
+	defer file.Close()
+
+	fi, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+	}
+
+	req, err := http.NewRequest("PUT", a.UploadURL, file)
+	if err != nil {
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.ContentLength = fi.Size()
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %d %s", a.UploadURL, resp.StatusCode, resp.Status)
+	}
+
+	writer.WriteField(formName+".upload_path", a.UploadPath)
+
+	// Allow to upload only once using given credentials
+	a.uploaded = true
+	return nil
 }
 
 func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer *multipart.Writer) error {
@@ -36,22 +101,16 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 		return err
 	}
 	defer tempFile.Close()
+
 	a.metadataFile = tempFile.Name()
 
-	// Generate metadata and save to file
-	zipMd := exec.Command("gitlab-zip-metadata", fileName)
-	zipMd.Stderr = os.Stderr
-	zipMd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	zipMd.Stdout = tempFile
-
-	if err := zipMd.Start(); err != nil {
+	err = a.generateMetadata(fileName, tempFile)
+	if err != nil {
 		return err
 	}
-	defer helper.CleanUpProcessGroup(zipMd)
-	if err := zipMd.Wait(); err != nil {
-		if st, ok := helper.ExitStatus(err); ok && st == zipartifacts.StatusNotZip {
-			return nil
-		}
+
+	err = a.uploadFile(formName, fileName, writer)
+	if err != nil {
 		return err
 	}
 
@@ -86,7 +145,11 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 			return
 		}
 
-		mg := &artifactsUploadProcessor{TempPath: a.TempPath}
+		mg := &artifactsUploadProcessor{
+			TempPath: a.TempPath,
+			UploadURL: a.UploadURL,
+			UploadPath: a.UploadPath,
+		}
 		defer mg.Cleanup()
 
 		upload.HandleFileUploads(w, r, h, a.TempPath, mg)
