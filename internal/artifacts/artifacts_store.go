@@ -32,10 +32,10 @@ var (
 	)
 	objectStorageUploadTime = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-		Name: "gitlab_workhorse_object_storage_upload_time",
-		Help: "How long it took to upload objects",
-		Buckets: objectStorageUploadTimeBuckets,
-	})
+			Name:    "gitlab_workhorse_object_storage_upload_time",
+			Help:    "How long it took to upload objects",
+			Buckets: objectStorageUploadTimeBuckets,
+		})
 
 	objectStorageUploadRequestsFileFailed      = objectStorageUploadRequests.WithLabelValues("file-failed")
 	objectStorageUploadRequestsRequestFailed   = objectStorageUploadRequests.WithLabelValues("request-failed")
