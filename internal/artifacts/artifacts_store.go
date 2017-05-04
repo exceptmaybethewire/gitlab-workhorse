@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	DefaultObjectStoreTimeout = 360 * time.Second
+	DefaultObjectStoreTimeoutSeconds = 360
 )
 
 var (
@@ -71,7 +71,9 @@ func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *
 	}
 
 	started := time.Now()
-	defer objectStorageUploadTime.Observe(time.Since(started).Seconds())
+	defer func() {
+		objectStorageUploadTime.Observe(time.Since(started).Seconds())
+	}()
 
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -97,12 +99,12 @@ func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *
 	objectStorageUploadsOpen.Inc()
 	defer objectStorageUploadsOpen.Dec()
 
-	timeout := DefaultObjectStoreTimeout
+	timeout := DefaultObjectStoreTimeoutSeconds
 	if a.ObjectStore.Timeout != 0 {
-		timeout = time.Duration(a.ObjectStore.Timeout) * time.Second
+		timeout = a.ObjectStore.Timeout
 	}
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), timeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancelFn()
 
 	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)

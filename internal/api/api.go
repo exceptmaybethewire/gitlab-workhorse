@@ -72,7 +72,7 @@ type RemoteObjectStore struct {
 	// ObjectID is a unique identifier of object storage upload
 	ObjectID string
 	// Timeout is a number that represents timeout in seconds for sending data to StoreURL
-	Timeout int64
+	Timeout int
 }
 
 type Response struct {
