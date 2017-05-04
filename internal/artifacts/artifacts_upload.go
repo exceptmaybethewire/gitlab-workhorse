@@ -146,7 +146,7 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 		}
 
 		mg := &artifactsUploadProcessor{
-			TempPath: a.TempPath,
+			TempPath:    a.TempPath,
 			ObjectStore: a.ObjectStore,
 		}
 		defer mg.Cleanup()
