@@ -22,7 +22,9 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/zipartifacts"
 )
 
-func testArtifactsUploadServer(t *testing.T, tempPath string) *httptest.Server {
+type bodyProcessor func(w http.ResponseWriter, r *http.Request)
+
+func testArtifactsUploadServer(t *testing.T, authResponse api.Response, bodyProcessor bodyProcessor) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/url/path/authorize", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -31,9 +33,7 @@ func testArtifactsUploadServer(t *testing.T, tempPath string) *httptest.Server {
 
 		w.Header().Set("Content-Type", api.ResponseContentType)
 
-		data, err := json.Marshal(&api.Response{
-			TempPath: tempPath,
-		})
+		data, err := json.Marshal(&authResponse)
 		if err != nil {
 			t.Fatal("Expected to marshal")
 		}
@@ -79,7 +79,11 @@ func testArtifactsUploadServer(t *testing.T, tempPath string) *httptest.Server {
 			return
 		}
 
-		w.WriteHeader(200)
+		if bodyProcessor != nil {
+			bodyProcessor(w, r)
+		} else {
+			w.WriteHeader(200)
+		}
 	})
 	return testhelper.TestServerWithHandler(nil, mux.ServeHTTP)
 }
@@ -107,7 +111,7 @@ func TestUploadHandlerAddingMetadata(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	ts := testArtifactsUploadServer(t, tempPath)
+	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
 	defer ts.Close()
 
 	var buffer bytes.Buffer
@@ -138,7 +142,7 @@ func TestUploadHandlerForUnsupportedArchive(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	ts := testArtifactsUploadServer(t, tempPath)
+	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
 	defer ts.Close()
 
 	var buffer bytes.Buffer
@@ -162,7 +166,7 @@ func TestUploadFormProcessing(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	ts := testArtifactsUploadServer(t, tempPath)
+	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
 	defer ts.Close()
 
 	var buffer bytes.Buffer
