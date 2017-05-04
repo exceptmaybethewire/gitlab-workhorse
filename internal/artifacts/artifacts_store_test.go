@@ -79,7 +79,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 
 	buffer, contentType := createTestZipArchive(t)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts, DefaultObjectStoreTimeout)
+	response := testUploadArtifacts(contentType, &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 200)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
 }
@@ -108,7 +108,7 @@ func TestUploadHandlerSendingToExternalStorageAndInvalidStoreURLIsUsed(t *testin
 
 	buffer, contentType := createTestZipArchive(t)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts, DefaultObjectStoreTimeout)
+	response := testUploadArtifacts(contentType, &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 }
 
