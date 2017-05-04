@@ -31,7 +31,7 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, meta
 	zipMd.Stdout = metadataFile
 
 	if err := zipMd.Start(); err != nil {
-		return err
+		return false, err
 	}
 	defer helper.CleanUpProcessGroup(zipMd)
 	if err := zipMd.Wait(); err != nil {
@@ -42,47 +42,6 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, meta
 	}
 
 	return true, nil
-}
-
-func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *multipart.Writer) error {
-	if a.ObjectStore.StoreURL == "" || a.stored {
-		return nil
-	}
-
-	file, err := os.Open(fileName)
-	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
-	}
-	defer file.Close()
-
-	fi, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
-	}
-
-	req, err := http.NewRequest("PUT", a.ObjectStore.StoreURL, file)
-	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
-	}
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.ContentLength = fi.Size()
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %d %s", a.ObjectStore.StoreURL, resp.StatusCode, resp.Status)
-	}
-
-	writer.WriteField(formName+".store_url", a.ObjectStore.StoreURL)
-	writer.WriteField(formName+".object_id", a.ObjectStore.ObjectID)
-
-	// Allow to upload only once using given credentials
-	a.stored = true
-	return nil
 }
 
 func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer *multipart.Writer) error {
@@ -106,7 +65,7 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 
 	generatedMetadata, err := a.generateMetadataFromZip(fileName, tempFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("generateMetadataFromZip: %v", err)
 	}
 
 	if generatedMetadata {
@@ -117,7 +76,7 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 
 	err = a.storeFile(formName, fileName, writer)
 	if err != nil {
-		return err
+		return fmt.Errorf("storeFile: %v", err)
 	}
 	return nil
 }
