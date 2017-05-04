@@ -19,17 +19,22 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 
-func createTestZipArchive(t *testing.T) (bytes.Buffer, string) {
+func createTestZipArchive(t *testing.T) []byte {
 	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
-	file, err := writer.CreateFormFile("file", "my.file")
-	require.NoError(t, err)
-	archive := zip.NewWriter(file)
-
+	archive := zip.NewWriter(&buffer)
 	fileInArchive, err := archive.Create("test.file")
 	require.NoError(t, err)
 	fmt.Fprint(fileInArchive, "test")
 	archive.Close()
+	return buffer.Bytes()
+}
+
+func createTestMultipartForm(t *testing.T, data []byte) (bytes.Buffer, string) {
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+	file, err := writer.CreateFormFile("file", "my.file")
+	require.NoError(t, err)
+	file.Write(data)
 	writer.Close()
 	return buffer, writer.FormDataContentType()
 }
@@ -41,8 +46,8 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	contentBuffer, contentType := createTestZipArchive(t)
-	contentData := contentBuffer.Bytes()
+	archiveData := createTestZipArchive(t)
+	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	storeServerCalled := 0
 	storeServerMux := http.NewServeMux()
@@ -51,7 +56,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 
 		receivedData, err := ioutil.ReadAll(r.Body)
 		require.NoError(t, err)
-		require.Equal(t, contentData, receivedData)
+		require.Equal(t, archiveData, receivedData)
 
 		storeServerCalled++
 		w.WriteHeader(200)
@@ -107,9 +112,10 @@ func TestUploadHandlerSendingToExternalStorageAndStorageServerUnreachable(t *tes
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	buffer, contentType := createTestZipArchive(t)
+	archiveData := createTestZipArchive(t)
+	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 }
 
@@ -135,9 +141,10 @@ func TestUploadHandlerSendingToExternalStorageAndInvalidURLIsUsed(t *testing.T) 
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	buffer, contentType := createTestZipArchive(t)
+	archiveData := createTestZipArchive(t)
+	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 }
 
@@ -175,9 +182,10 @@ func TestUploadHandlerSendingToExternalStorageAndItReturnsAnError(t *testing.T) 
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	buffer, contentType := createTestZipArchive(t)
+	archiveData := createTestZipArchive(t)
+	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
 }
@@ -218,9 +226,10 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	buffer, contentType := createTestZipArchive(t)
+	archiveData := createTestZipArchive(t)
+	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
 }
