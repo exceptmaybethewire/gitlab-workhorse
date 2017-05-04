@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -17,10 +18,11 @@ import (
 )
 
 type artifactsUploadProcessor struct {
-	TempPath     string
-	ObjectStore  api.RemoteObjectStore
-	metadataFile string
-	stored       bool
+	TempPath           string
+	ObjectStore        api.RemoteObjectStore
+	ObjectStoreTimeout time.Duration
+	metadataFile       string
+	stored             bool
 }
 
 func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, metadataFile io.Writer) (bool, error) {
@@ -99,7 +101,7 @@ func (a *artifactsUploadProcessor) Cleanup() {
 	}
 }
 
-func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
+func UploadArtifacts(myAPI *api.API, h http.Handler, objectStoreTimeout time.Duration) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
 		if a.TempPath == "" {
 			helper.Fail500(w, r, fmt.Errorf("UploadArtifacts: TempPath is empty"))
@@ -107,8 +109,9 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 		}
 
 		mg := &artifactsUploadProcessor{
-			TempPath:    a.TempPath,
-			ObjectStore: a.ObjectStore,
+			TempPath:           a.TempPath,
+			ObjectStore:        a.ObjectStore,
+			ObjectStoreTimeout: objectStoreTimeout,
 		}
 		defer mg.Cleanup()
 

@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
@@ -88,7 +89,7 @@ func testArtifactsUploadServer(t *testing.T, authResponse api.Response, bodyProc
 	return testhelper.TestServerWithHandler(nil, mux.ServeHTTP)
 }
 
-func testUploadArtifacts(contentType string, body io.Reader, t *testing.T, ts *httptest.Server) *httptest.ResponseRecorder {
+func testUploadArtifacts(contentType string, body io.Reader, t *testing.T, ts *httptest.Server, objectStoreTimeout time.Duration) *httptest.ResponseRecorder {
 	httpRequest, err := http.NewRequest("POST", ts.URL+"/url/path", body)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +101,7 @@ func testUploadArtifacts(contentType string, body io.Reader, t *testing.T, ts *h
 	testhelper.ConfigureSecret()
 	apiClient := api.NewAPI(parsedURL, "123", roundTripper)
 	proxyClient := proxy.NewProxy(parsedURL, "123", roundTripper)
-	UploadArtifacts(apiClient, proxyClient).ServeHTTP(response, httpRequest)
+	UploadArtifacts(apiClient, proxyClient, objectStoreTimeout).ServeHTTP(response, httpRequest)
 	return response
 }
 
@@ -131,7 +132,7 @@ func TestUploadHandlerAddingMetadata(t *testing.T) {
 	archive.Close()
 	writer.Close()
 
-	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts)
+	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts, 0)
 	testhelper.AssertResponseCode(t, response, 200)
 }
 
@@ -154,7 +155,7 @@ func TestUploadHandlerForUnsupportedArchive(t *testing.T) {
 	fmt.Fprint(file, "test")
 	writer.Close()
 
-	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts)
+	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts, 0)
 	// 502 is a custom response code from the mock server in testUploadArtifacts
 	testhelper.AssertResponseCode(t, response, 502)
 }
@@ -178,6 +179,6 @@ func TestUploadFormProcessing(t *testing.T) {
 	fmt.Fprint(file, "test")
 	writer.Close()
 
-	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts)
+	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts, 0)
 	testhelper.AssertResponseCode(t, response, 500)
 }

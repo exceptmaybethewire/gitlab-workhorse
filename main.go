@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/artifacts"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/queueing"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/redis"
@@ -52,6 +53,7 @@ var apiLimit = flag.Uint("apiLimit", 0, "Number of API requests allowed at singl
 var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowed to be queued")
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
 var apiCiLongPollingDuration = flag.Duration("apiCiLongPollingDuration", 0, "Long polling duration for job requesting for runners (default 0s - disabled)")
+var objectStoreTimeout = flag.Duration("objectStoreTimeout", artifacts.DefaultObjectStoreTimeout, "Timeout for object storage uploads")
 var logFile = flag.String("logFile", "", "Log file to be used")
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. ':9100'")
 
@@ -123,6 +125,7 @@ func main() {
 		APIQueueLimit:            *apiQueueLimit,
 		APIQueueTimeout:          *apiQueueTimeout,
 		APICILongPollingDuration: *apiCiLongPollingDuration,
+		ObjectStoreTimeout:       *objectStoreTimeout,
 	}
 
 	if *configFile != "" {

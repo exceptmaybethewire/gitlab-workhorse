@@ -5,9 +5,16 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"time"
+
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"time"
+)
+
+var (
+	DefaultObjectStoreTimeout = 360 * time.Second
 )
 
 var (
@@ -90,7 +97,10 @@ func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *
 	objectStorageUploadsOpen.Inc()
 	defer objectStorageUploadsOpen.Dec()
 
-	resp, err := http.DefaultClient.Do(req)
+	ctx, cancelFn := context.WithTimeout(context.Background(), a.ObjectStoreTimeout)
+	defer cancelFn()
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 	if err != nil {
 		objectStorageUploadRequestsRequestFailed.Inc()
 		return fmt.Errorf("request %q failed with: %v", a.ObjectStore.StoreURL, err)

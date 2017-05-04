@@ -149,6 +149,12 @@
 			"revision": "f2499483f923065a842d38eb4c7f1927e6fc6e6d"
 		},
 		{
+			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
+			"path": "golang.org/x/net/context/ctxhttp",
+			"revision": "a6577fac2d73be281a500b310739095313165611",
+			"revisionTime": "2017-03-08T20:54:49Z"
+		},
+		{
 			"checksumSHA1": "N1akwAdrHVfPPrsFOhG2ouP21VA=",
 			"path": "golang.org/x/net/http2",
 			"revision": "f2499483f923065a842d38eb4c7f1927e6fc6e6d"

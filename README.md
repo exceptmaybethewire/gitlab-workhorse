@@ -58,6 +58,8 @@ Options:
     	Listen 'network' (tcp, tcp4, tcp6, unix) (default "tcp")
   -listenUmask int
     	Umask for Unix socket
+  -objectStoreTimeout duration
+    	Timeout for object storage uploads (default 6m0s)
   -pprofListenAddr string
     	pprof listening address, e.g. 'localhost:6060'
   -proxyHeadersTimeout duration
