@@ -18,13 +18,12 @@ import (
 
 type artifactsUploadProcessor struct {
 	TempPath     string
-	UploadURL    string
-	UploadPath   string
+	ObjectStore  api.RemoteObjectStore
 	metadataFile string
-	uploaded     bool
+	stored       bool
 }
 
-func (a *artifactsUploadProcessor) generateMetadata(fileName string, metadataFile io.Writer) error {
+func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, metadataFile io.Writer) error {
 	// Generate metadata and save to file
 	zipMd := exec.Command("gitlab-zip-metadata", fileName)
 	zipMd.Stderr = os.Stderr
@@ -45,43 +44,44 @@ func (a *artifactsUploadProcessor) generateMetadata(fileName string, metadataFil
 	return nil
 }
 
-func (a *artifactsUploadProcessor) uploadFile(formName, fileName string, writer *multipart.Writer) error {
-	if a.UploadURL == "" || a.uploaded {
+func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *multipart.Writer) error {
+	if a.ObjectStore.StoreURL == "" || a.stored {
 		return nil
 	}
 
 	file, err := os.Open(fileName)
 	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
 	}
 	defer file.Close()
 
 	fi, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
 	}
 
-	req, err := http.NewRequest("PUT", a.UploadURL, file)
+	req, err := http.NewRequest("PUT", a.ObjectStore.StoreURL, file)
 	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.ContentLength = fi.Size()
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.UploadURL, err)
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %v", a.ObjectStore.StoreURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("uploadFile: upload file to: %v failed with: %d %s", a.UploadURL, resp.StatusCode, resp.Status)
+		return fmt.Errorf("uploadFile: upload file to: %v failed with: %d %s", a.ObjectStore.StoreURL, resp.StatusCode, resp.Status)
 	}
 
-	writer.WriteField(formName+".upload_path", a.UploadPath)
+	writer.WriteField(formName+".store_url", a.ObjectStore.StoreURL)
+	writer.WriteField(formName+".object_id", a.ObjectStore.ObjectID)
 
 	// Allow to upload only once using given credentials
-	a.uploaded = true
+	a.stored = true
 	return nil
 }
 
@@ -104,12 +104,12 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 
 	a.metadataFile = tempFile.Name()
 
-	err = a.generateMetadata(fileName, tempFile)
+	err = a.generateMetadataFromZip(fileName, tempFile)
 	if err != nil {
 		return err
 	}
 
-	err = a.uploadFile(formName, fileName, writer)
+	err = a.storeFile(formName, fileName, writer)
 	if err != nil {
 		return err
 	}
@@ -147,8 +147,7 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 
 		mg := &artifactsUploadProcessor{
 			TempPath: a.TempPath,
-			UploadURL: a.UploadURL,
-			UploadPath: a.UploadPath,
+			ObjectStore: a.ObjectStore,
 		}
 		defer mg.Cleanup()
 

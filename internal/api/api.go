@@ -66,6 +66,13 @@ func NewAPI(myURL *url.URL, version string, roundTripper *badgateway.RoundTrippe
 
 type HandleFunc func(http.ResponseWriter, *http.Request, *Response)
 
+type RemoteObjectStore struct {
+	// StoreURL is the temporary URL to which upload the first found file
+	StoreURL string
+	// ObjectID is a unique identifier of object storage upload
+	ObjectID string
+}
+
 type Response struct {
 	// GL_ID is an environment variable used by gitlab-shell hooks during 'git
 	// push' and 'git pull'
@@ -83,10 +90,9 @@ type Response struct {
 	// TmpPath is the path where we should store temporary files
 	// This is set by authorization middleware
 	TempPath string
-	// UploadURL is the temporary URL to which upload the first found file
-	UploadURL string
-	// UploadPath is a path where the upload is stored
-	UploadPath string
+	// ObjectStore is provided by the GitLab Rails application
+	// and defines a way to store object on remote storage
+	ObjectStore RemoteObjectStore
 	// Archive is the path where the artifacts archive is stored
 	Archive string `json:"archive"`
 	// Entry is a filename inside the archive point to file that needs to be extracted
