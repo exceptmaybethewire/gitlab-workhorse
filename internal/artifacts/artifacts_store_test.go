@@ -41,8 +41,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	putCalledTimes := 0
-
+	storeServerCalled := 0
 	storeServerMux := http.NewServeMux()
 	storeServerMux.HandleFunc("/url/put", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "PUT", r.Method)
@@ -53,14 +52,16 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 		_, err = zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		require.NoError(t, err)
 
-		putCalledTimes++
+		storeServerCalled++
 		w.WriteHeader(200)
 	})
 
+	responseProcessorCalled := 0
 	responseProcessor := func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "store-id", r.FormValue("file.object_id"))
 		assert.NotEmpty(t, r.FormValue("file.store_url"))
 		w.WriteHeader(200)
+		responseProcessorCalled++
 	}
 
 	storeServer := httptest.NewServer(storeServerMux)
@@ -81,10 +82,11 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 
 	response := testUploadArtifacts(contentType, &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 200)
-	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
+	assert.Equal(t, 1, storeServerCalled, "store should be called only once")
+	assert.Equal(t, 1, responseProcessorCalled, "response processor should be called only once")
 }
 
-func TestUploadHandlerSendingToExternalStorageAndInvalidStoreURLIsUsed(t *testing.T) {
+func TestUploadHandlerSendingToExternalStorageAndStorageServerUnreachable(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
 	if err != nil {
 		t.Fatal(err)
@@ -99,6 +101,34 @@ func TestUploadHandlerSendingToExternalStorageAndInvalidStoreURLIsUsed(t *testin
 		TempPath: tempPath,
 		ObjectStore: api.RemoteObjectStore{
 			StoreURL: "http://localhost:12323/invalid/url",
+			ObjectID: "store-id",
+		},
+	}
+
+	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
+	defer ts.Close()
+
+	buffer, contentType := createTestZipArchive(t)
+
+	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	testhelper.AssertResponseCode(t, response, 500)
+}
+
+func TestUploadHandlerSendingToExternalStorageAndInvalidURLIsUsed(t *testing.T) {
+	tempPath, err := ioutil.TempDir("", "uploads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempPath)
+
+	responseProcessor := func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("it should not be called")
+	}
+
+	authResponse := api.Response{
+		TempPath: tempPath,
+		ObjectStore: api.RemoteObjectStore{
+			StoreURL: "htt:////invalid-url",
 			ObjectID: "store-id",
 		},
 	}
@@ -148,7 +178,7 @@ func TestUploadHandlerSendingToExternalStorageAndItReturnsAnError(t *testing.T) 
 
 	buffer, contentType := createTestZipArchive(t)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts, DefaultObjectStoreTimeout)
+	response := testUploadArtifacts(contentType, &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
 }
@@ -166,7 +196,7 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 	storeServerMux.HandleFunc("/url/put", func(w http.ResponseWriter, r *http.Request) {
 		putCalledTimes++
 		assert.Equal(t, "PUT", r.Method)
-		time.Sleep(time.Minute)
+		time.Sleep(10 * time.Second)
 		w.WriteHeader(510)
 	})
 
@@ -182,6 +212,7 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 		ObjectStore: api.RemoteObjectStore{
 			StoreURL: storeServer.URL + "/url/put",
 			ObjectID: "store-id",
+			Timeout:  1,
 		},
 	}
 
@@ -190,7 +221,7 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 
 	buffer, contentType := createTestZipArchive(t)
 
-	response := testUploadArtifacts(contentType, &buffer, t, ts, time.Second)
+	response := testUploadArtifacts(contentType, &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
 }

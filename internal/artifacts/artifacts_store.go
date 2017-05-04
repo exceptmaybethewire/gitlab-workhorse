@@ -28,7 +28,7 @@ var (
 	objectStorageUploadsOpen = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "gitlab_workhorse_object_storage_upload_open",
-			Help: "Describes how many requests is currently open in given state",
+			Help: "Describes many object storage requests are open now",
 		},
 	)
 	objectStorageUploadBytes = prometheus.NewCounter(
@@ -76,20 +76,20 @@ func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *
 	file, err := os.Open(fileName)
 	if err != nil {
 		objectStorageUploadRequestsFileFailed.Inc()
-		return fmt.Errorf("%q open failed with: %v", fileName, err)
+		return err
 	}
 	defer file.Close()
 
 	fi, err := file.Stat()
 	if err != nil {
 		objectStorageUploadRequestsFileFailed.Inc()
-		return fmt.Errorf("%q stat failed with: %v", fileName, err)
+		return err
 	}
 
 	req, err := http.NewRequest("PUT", a.ObjectStore.StoreURL, file)
 	if err != nil {
 		objectStorageUploadRequestsRequestFailed.Inc()
-		return fmt.Errorf("PUT %q failed with: %v", a.ObjectStore.StoreURL, err)
+		return fmt.Errorf("PUT %q: %v", a.ObjectStore.StoreURL, err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.ContentLength = fi.Size()
@@ -97,19 +97,24 @@ func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *
 	objectStorageUploadsOpen.Inc()
 	defer objectStorageUploadsOpen.Dec()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), a.ObjectStoreTimeout)
+	timeout := DefaultObjectStoreTimeout
+	if a.ObjectStore.Timeout != 0 {
+		timeout = time.Duration(a.ObjectStore.Timeout) * time.Second
+	}
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), timeout)
 	defer cancelFn()
 
 	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 	if err != nil {
 		objectStorageUploadRequestsRequestFailed.Inc()
-		return fmt.Errorf("request %q failed with: %v", a.ObjectStore.StoreURL, err)
+		return fmt.Errorf("PUT request %q: %v", a.ObjectStore.StoreURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		objectStorageUploadRequestsInvalidStatus.Inc()
-		return fmt.Errorf("request %v failed with: %d %s", a.ObjectStore.StoreURL, resp.StatusCode, resp.Status)
+		return fmt.Errorf("PUT request %v returned: %d %s", a.ObjectStore.StoreURL, resp.StatusCode, resp.Status)
 	}
 
 	writer.WriteField(formName+".store_url", a.ObjectStore.StoreURL)

@@ -22,9 +22,7 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/zipartifacts"
 )
 
-type bodyProcessor func(w http.ResponseWriter, r *http.Request)
-
-func testArtifactsUploadServer(t *testing.T, authResponse api.Response, bodyProcessor bodyProcessor) *httptest.Server {
+func testArtifactsUploadServer(t *testing.T, authResponse api.Response, bodyProcessor func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/url/path/authorize", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {

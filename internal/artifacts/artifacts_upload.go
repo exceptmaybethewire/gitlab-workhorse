@@ -74,8 +74,7 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 		writer.WriteField("metadata.name", "metadata.gz")
 	}
 
-	err = a.storeFile(formName, fileName, writer)
-	if err != nil {
+	if err := a.storeFile(formName, fileName, writer); err != nil {
 		return fmt.Errorf("storeFile: %v", err)
 	}
 	return nil
