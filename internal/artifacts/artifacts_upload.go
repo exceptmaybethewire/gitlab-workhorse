@@ -23,7 +23,7 @@ type artifactsUploadProcessor struct {
 	stored       bool
 }
 
-func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, metadataFile io.Writer) error {
+func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, metadataFile io.Writer) (bool, error) {
 	// Generate metadata and save to file
 	zipMd := exec.Command("gitlab-zip-metadata", fileName)
 	zipMd.Stderr = os.Stderr
@@ -36,12 +36,12 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, meta
 	defer helper.CleanUpProcessGroup(zipMd)
 	if err := zipMd.Wait(); err != nil {
 		if st, ok := helper.ExitStatus(err); ok && st == zipartifacts.StatusNotZip {
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func (a *artifactsUploadProcessor) storeFile(formName, fileName string, writer *multipart.Writer) error {
@@ -104,19 +104,21 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 
 	a.metadataFile = tempFile.Name()
 
-	err = a.generateMetadataFromZip(fileName, tempFile)
+	generatedMetadata, err := a.generateMetadataFromZip(fileName, tempFile)
 	if err != nil {
 		return err
+	}
+
+	if generatedMetadata {
+		// Pass metadata file path to Rails
+		writer.WriteField("metadata.path", a.metadataFile)
+		writer.WriteField("metadata.name", "metadata.gz")
 	}
 
 	err = a.storeFile(formName, fileName, writer)
 	if err != nil {
 		return err
 	}
-
-	// Pass metadata file path to Rails
-	writer.WriteField("metadata.path", a.metadataFile)
-	writer.WriteField("metadata.name", "metadata.gz")
 	return nil
 }
 
