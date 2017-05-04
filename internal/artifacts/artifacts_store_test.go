@@ -41,16 +41,17 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
+	contentBuffer, contentType := createTestZipArchive(t)
+	contentData := contentBuffer.Bytes()
+
 	storeServerCalled := 0
 	storeServerMux := http.NewServeMux()
 	storeServerMux.HandleFunc("/url/put", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "PUT", r.Method)
 
-		data, err := ioutil.ReadAll(r.Body)
+		receivedData, err := ioutil.ReadAll(r.Body)
 		require.NoError(t, err)
-
-		_, err = zip.NewReader(bytes.NewReader(data), int64(len(data)))
-		require.NoError(t, err)
+		require.Equal(t, contentData, receivedData)
 
 		storeServerCalled++
 		w.WriteHeader(200)
@@ -78,9 +79,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	buffer, contentType := createTestZipArchive(t)
-
-	response := testUploadArtifacts(contentType, &buffer, t, ts)
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 200)
 	assert.Equal(t, 1, storeServerCalled, "store should be called only once")
 	assert.Equal(t, 1, responseProcessorCalled, "response processor should be called only once")
