@@ -170,7 +170,59 @@ const (
 	// WatchKeyStatusNoChange is returned when the function had to return before observing a change.
 	//  Also returned on errors.
 	WatchKeyStatusNoChange
+	WatchKeyStatusStopped
 )
+
+func AsyncWatchKey(key, value string, timeout time.Duration, callback func(WatchKeyStatus, error)) interface{} {
+	kw := &KeyChan{
+		Key:  key,
+		Chan: make(chan string, 1),
+	}
+	addKeyChan(kw)
+
+	currentValue, err := GetString(key)
+	if err != nil {
+		delKeyChan(kw)
+		if err == redis.ErrNil {
+			go callback(WatchKeyStatusAlreadyChanged, nil)
+		} else {
+			go callback(WatchKeyStatusNoChange, fmt.Errorf("keywatcher: redis GET: %v", err))
+		}
+		return nil
+	}
+	if currentValue != value {
+		delKeyChan(kw)
+		go callback(WatchKeyStatusAlreadyChanged, nil)
+		return nil
+	}
+
+	go func() {
+		select {
+		case currentValue, ok := <-kw.Chan:
+			if !ok {
+				callback(WatchKeyStatusStopped, nil)
+			} else if currentValue == "" {
+				callback(WatchKeyStatusNoChange, fmt.Errorf("keywatcher: redis GET failed"))
+			} else if currentValue == value {
+				callback(WatchKeyStatusNoChange, nil)
+			} else {
+				callback(WatchKeyStatusSeenChange, nil)
+			}
+
+		case <-time.After(timeout):
+			callback(WatchKeyStatusTimeout, nil)
+		}
+	}()
+
+	return kw
+}
+
+func StopAsyncWatchKey(subject interface{}) {
+	if kw, ok := subject.(*KeyChan); ok && kw != nil {
+		delKeyChan(kw)
+		close(kw.Chan)
+	}
+}
 
 // WatchKey waits for a key to be updated or expired
 func WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) {

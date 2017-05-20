@@ -1,14 +1,18 @@
 package upstream
 
 import (
+	"log"
 	"net/http"
 	"path"
 	"regexp"
+	"time"
 
+	"github.com/googollee/go-socket.io"
 	"github.com/gorilla/websocket"
 
 	apipkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/artifacts"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/asyncprocessing"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/builds"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -103,14 +107,13 @@ func (u *Upstream) configureRoutes() {
 		u.RoundTripper,
 	)
 	static := &staticpages.Static{u.DocumentRoot}
+	baseProxy := apipkg.Block(proxypkg.NewProxy(
+		u.Backend,
+		u.Version,
+		u.RoundTripper,
+	))
 	proxy := senddata.SendData(
-		sendfile.SendFile(
-			apipkg.Block(
-				proxypkg.NewProxy(
-					u.Backend,
-					u.Version,
-					u.RoundTripper,
-				))),
+		sendfile.SendFile(baseProxy),
 		git.SendArchive,
 		git.SendBlob,
 		git.SendDiff,
@@ -122,7 +125,29 @@ func (u *Upstream) configureRoutes() {
 	ciAPIProxyQueue := queueing.QueueRequests("ci_api_job_requests", uploadAccelerateProxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout)
 	ciAPILongPolling := builds.RegisterHandler(ciAPIProxyQueue, redis.WatchKey, u.APICILongPollingDuration)
 
+	brokerServer, err := socketio.NewServer(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		brokerServer.ServeHTTP(w, r)
+		time.Sleep(time.Hour)
+	})
+
+	err = asyncprocessing.Start(brokerServer, api)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	u.Routes = []routeEntry{
+		// Terminal websocket
+		routeEntry{
+			method:  "GET",
+			regex:   compileRegexp(`socket.io/`),
+			handler: h,
+		},
+
 		// Git Clone
 		route("GET", gitProjectPattern+`info/refs\z`, git.GetInfoRefsHandler(api)),
 		route("POST", gitProjectPattern+`git-upload-pack\z`, contentEncodingHandler(git.UploadPack(api)), isContentType("application/x-git-upload-pack-request")),

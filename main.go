@@ -76,7 +76,7 @@ func main() {
 		log.Fatalf("invalid authBackend: %v", err)
 	}
 
-	log.Printf("Starting %s", version)
+	log.Printf("Starting XXX %s", version)
 
 	// Good housekeeping for Unix sockets: unlink before binding
 	if *listenNetwork == "unix" {

@@ -110,7 +110,7 @@ func singleJoiningSlash(a, b string) string {
 }
 
 // rebaseUrl is taken from reverseproxy.go:NewSingleHostReverseProxy
-func rebaseUrl(url *url.URL, onto *url.URL, suffix string) *url.URL {
+func RebaseUrl(url *url.URL, onto *url.URL, suffix string) *url.URL {
 	newUrl := *url
 	newUrl.Scheme = onto.Scheme
 	newUrl.Host = onto.Host
@@ -128,7 +128,7 @@ func rebaseUrl(url *url.URL, onto *url.URL, suffix string) *url.URL {
 func (api *API) newRequest(r *http.Request, body io.Reader, suffix string) (*http.Request, error) {
 	authReq := &http.Request{
 		Method: r.Method,
-		URL:    rebaseUrl(r.URL, api.URL, suffix),
+		URL:    RebaseUrl(r.URL, api.URL, suffix),
 		Header: helper.HeaderClone(r.Header),
 	}
 	if body != nil {
