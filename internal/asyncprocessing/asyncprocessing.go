@@ -2,7 +2,7 @@ package asyncprocessing
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"strings"
@@ -20,7 +20,6 @@ import (
 )
 
 type SubscripeEndpoint struct {
-	ID       string
 	Endpoint string
 	Data     url.Values
 }
@@ -32,6 +31,7 @@ func (s *SubscripeEndpoint) RedisKey() string {
 type subscriptionData struct {
 	SubscripeEndpoint
 
+	ID       string
 	socket   socketio.Socket
 	task     interface{}
 	lastEtag string
@@ -48,6 +48,7 @@ func (s *subscriptionData) emit(response subResponse) {
 }
 
 func (s *subscriptionData) handle(status redis.WatchKeyStatus, err error) {
+	log.Println("SUB HANDLE", s.ID, status, err)
 	if err != nil {
 		log.Println("Subscription error:", err)
 		return
@@ -111,9 +112,6 @@ func (s *subscriptionData) handle(status redis.WatchKeyStatus, err error) {
 func (s *subscriptionData) Start() error {
 	log.Println("Start watching:", s.RedisKey(), "with last value:", s.lastEtag)
 	s.task = redis.AsyncWatchKey(s.RedisKey(), s.lastEtag, time.Hour, s.handle)
-	if s.task == nil {
-		return errors.New("failed to find")
-	}
 	return nil
 }
 
@@ -128,6 +126,7 @@ type ConnectionSubscriptions map[string]*subscriptionData
 
 var lock sync.RWMutex
 var data = make(map[socketio.Socket]ConnectionSubscriptions)
+var subId = 0
 
 var apiHandler *api.API
 
@@ -143,12 +142,10 @@ func handleSubscribeEndpoint(so socketio.Socket, ep SubscripeEndpoint) (string, 
 		data[so] = subs
 	}
 
-	sub := subs[ep.ID]
-	if sub != nil {
-		return "", errors.New("is already defined")
-	}
+	subId++
 
-	sub = new(subscriptionData)
+	sub := new(subscriptionData)
+	sub.ID = fmt.Sprintf("%d", subId)
 	sub.SubscripeEndpoint = ep
 	sub.socket = so
 
@@ -156,26 +153,26 @@ func handleSubscribeEndpoint(so socketio.Socket, ep SubscripeEndpoint) (string, 
 		return "", err
 	}
 
-	subs[ep.ID] = sub
-	return ep.ID, nil
+	subs[sub.ID] = sub
+	return sub.ID, nil
 }
 
-func handleUnsubscribeEndpoint(so socketio.Socket, ep SubscripeEndpoint) error {
+func handleUnsubscribeEndpoint(so socketio.Socket, id string) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	log.Println("UNSUB", ep)
+	log.Println("UNSUB", id)
 
 	subs := data[so]
 	if subs == nil {
 		return nil
 	}
 
-	sub := subs[ep.ID]
+	sub := subs[id]
 	if sub == nil {
 		return nil
 	}
-	delete(subs, ep.ID)
+	delete(subs, id)
 
 	sub.Stop()
 	return nil
@@ -202,18 +199,19 @@ func handleConnection(so socketio.Socket) error {
 
 	so.Emit("test")
 
-	err := so.On("subscribe:endpoint", func(ep SubscripeEndpoint) string {
-		log.Println("subscribe:endpoint", ep)
-		id, _ := handleSubscribeEndpoint(so, ep)
+	err := so.On("subscribe", func(ep SubscripeEndpoint) string {
+		log.Println("subscribe", ep)
+		id, err := handleSubscribeEndpoint(so, ep)
+		log.Println("subscribe ID", id, err)
 		return id
 	})
 	if err != nil {
 		return err
 	}
 
-	err = so.On("unsubscribe:endpoint", func(ep SubscripeEndpoint) {
-		log.Println("unsubscribe:endpoint", ep)
-		handleUnsubscribeEndpoint(so, ep)
+	err = so.On("unsubscribe", func(id string) {
+		log.Println("unsubscribe", id)
+		handleUnsubscribeEndpoint(so, id)
 	})
 	if err != nil {
 		return err

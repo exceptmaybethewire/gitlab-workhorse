@@ -184,7 +184,7 @@ func AsyncWatchKey(key, value string, timeout time.Duration, callback func(Watch
 	if err != nil {
 		delKeyChan(kw)
 		if err == redis.ErrNil {
-			go callback(WatchKeyStatusAlreadyChanged, nil)
+			go callback(WatchKeyStatusSeenChange, nil)
 		} else {
 			go callback(WatchKeyStatusNoChange, fmt.Errorf("keywatcher: redis GET: %v", err))
 		}
