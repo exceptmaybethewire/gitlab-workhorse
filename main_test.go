@@ -555,10 +555,8 @@ func TestQueryStringLogFiltering(t *testing.T) {
 	// capture the log output
 	buf := bytes.NewBuffer(nil)
 	log.SetOutput(buf)
-	helper.SetCustomResponseLogger(buf)
 
 	defer log.SetOutput(os.Stderr)
-	defer helper.SetCustomResponseLogger(os.Stderr)
 
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
