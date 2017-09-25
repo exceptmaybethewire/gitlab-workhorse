@@ -50,6 +50,12 @@ var (
 			Help: "How many connections gitlab-workhorse has opened in total. Can be used to track Redis connection rate for this process",
 		},
 	)
+	errorConnections = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "gitlab_workhorse_redis_errors",
+			Help: "How many connections gitlab-workhorse has failed in total. Can be used to track Redis connection error rate for this process",
+		},
+	)
 )
 
 func init() {
@@ -178,6 +184,9 @@ func countDialer(dialer redisDialerFunc) redisDialerFunc {
 		c, err := dialer()
 		if err == nil {
 			totalConnections.Inc()
+		}
+		if err != nil {
+			errorConnections.Inc()
 		}
 		return c, err
 	}
