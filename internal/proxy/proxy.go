@@ -37,7 +37,7 @@ func NewProxy(myURL *url.URL, version string, roundTripper *badgateway.RoundTrip
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Clone request
-	req := *r
+	req := r.WithContext(r.Context()) // Use WithContext to safely share the context
 	req.Header = helper.HeaderClone(r.Header)
 
 	// Set Workhorse version
@@ -48,5 +48,5 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		helper.AllowResponseBuffering(w)
 	}
 
-	p.reverseProxy.ServeHTTP(w, &req)
+	p.reverseProxy.ServeHTTP(w, req)
 }

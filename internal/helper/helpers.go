@@ -185,11 +185,11 @@ func ReadRequestBody(w http.ResponseWriter, r *http.Request, maxBodySize int64) 
 }
 
 func CloneRequestWithNewBody(r *http.Request, body []byte) *http.Request {
-	newReq := *r
+	newReq := r.WithContext(r.Context()) // Use WithContext to safely share the context
 	newReq.Body = ioutil.NopCloser(bytes.NewReader(body))
 	newReq.Header = HeaderClone(r.Header)
 	newReq.ContentLength = int64(len(body))
-	return &newReq
+	return newReq
 }
 
 // ScrubURLParams replaces the content of any sensitive query string parameters
