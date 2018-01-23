@@ -26,8 +26,8 @@ func PutStore(a *api.API, h http.Handler) http.Handler {
 func lfsAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
 
-		if a.StoreLFSPath == "" {
-			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: StoreLFSPath empty"))
+		if a.TempPath == "" {
+			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: TempPath empty"))
 			return
 		}
 
@@ -36,8 +36,8 @@ func lfsAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler
 			return
 		}
 
-		if err := os.MkdirAll(a.StoreLFSPath, 0700); err != nil {
-			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: mkdir StoreLFSPath: %v", err))
+		if err := os.MkdirAll(a.TempPath, 0700); err != nil {
+			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: mkdir TempPath: %v", err))
 			return
 		}
 
@@ -47,7 +47,7 @@ func lfsAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler
 
 func handleStoreLfsObject(h http.Handler) api.HandleFunc {
 	return func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		file, err := ioutil.TempFile(a.StoreLFSPath, a.LfsOid)
+		file, err := ioutil.TempFile(a.TempPath, a.LfsOid)
 		if err != nil {
 			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: create tempfile: %v", err))
 			return

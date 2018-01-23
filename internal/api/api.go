@@ -90,9 +90,6 @@ type Response struct {
 	// RepoPath is the full path on disk to the Git repository the request is
 	// about
 	RepoPath string
-	// StoreLFSPath is provided by the GitLab Rails application
-	// to mark where the tmp file should be placed
-	StoreLFSPath string
 	// LFS object id
 	LfsOid string
 	// LFS object size
