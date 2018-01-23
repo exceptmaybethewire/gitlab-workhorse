@@ -6,82 +6,73 @@ package lfs
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"path/filepath"
+	"context"
+	"strconv"
+	"net/url"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/file_storage"
 )
 
 func PutStore(a *api.API, h http.Handler) http.Handler {
-	return lfsAuthorizeHandler(a, handleStoreLfsObject(h))
+	return lfsAuthorizeHandler(a, h)
 }
 
-func lfsAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler {
+func lfsAuthorizeHandler(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-
-		if a.TempPath == "" {
-			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: TempPath empty"))
-			return
-		}
-
-		if a.LfsOid == "" {
-			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: LfsOid empty"))
-			return
-		}
-
-		if err := os.MkdirAll(a.TempPath, 0700); err != nil {
-			helper.Fail500(w, r, fmt.Errorf("lfsAuthorizeHandler: mkdir TempPath: %v", err))
-			return
-		}
-
-		handleFunc(w, r, a)
-	}, "/authorize")
-}
-
-func handleStoreLfsObject(h http.Handler) api.HandleFunc {
-	return func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		file, err := ioutil.TempFile(a.TempPath, a.LfsOid)
-		if err != nil {
-			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: create tempfile: %v", err))
-			return
-		}
-		defer os.Remove(file.Name())
-		defer file.Close()
-
-		hash := sha256.New()
-		hw := io.MultiWriter(hash, file)
-
-		written, err := io.Copy(hw, r.Body)
+		fh, cancelFn, err := file_storage.SaveFile(context.Background(), a, r.Body, r.ContentLength)
 		if err != nil {
 			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: copy body to tempfile: %v", err))
 			return
 		}
-		file.Close()
+		defer cancelFn()
 
-		if written != a.LfsSize {
-			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: expected size %d, wrote %d", a.LfsSize, written))
+		if fh.Size != a.LfsSize {
+			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: expected size %d, wrote %d", a.LfsSize, fh.Size))
 			return
 		}
 
-		shaStr := hex.EncodeToString(hash.Sum(nil))
-		if shaStr != a.LfsOid {
-			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: expected sha256 %s, got %s", a.LfsOid, shaStr))
+		if fh.Hashes["sha256"] != a.LfsOid {
+			helper.Fail500(w, r, fmt.Errorf("handleStoreLfsObject: expected sha256 %s, got %s", a.LfsOid,  fh.Hashes["sha256"]))
 			return
 		}
+
+		data := url.Values{}
+		data.Set("file.name", a.LfsOid)
+		if fh.LocalPath != "" {
+			data.Set("file.path", fh.LocalPath)
+		}
+		if fh.RemoteURL != "" {
+			data.Set("file.store_url", fh.RemoteURL)
+		}
+		if fh.RemoteID != "" {
+			data.Set("file.object_id", fh.RemoteID)
+		}
+		data.Set("file.size", strconv.FormatInt(fh.Size, 10))
+		for hashName, hash := range fh.Hashes {
+			data.Set("file." + hashName, hash)
+		}
+		dataString := data.Encode()
+
+		r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		
+		fmt.Println("DATA STRING", dataString)
 
 		// Inject header and body
-		r.Header.Set("X-GitLab-Lfs-Tmp", filepath.Base(file.Name()))
-		r.Body = ioutil.NopCloser(&bytes.Buffer{})
+		r.Body = ioutil.NopCloser(bytes.NewBufferString(dataString))
+		r.ContentLength = int64(len(dataString))
+		fmt.Println("DATA XX", r.ContentLength)
+
+		r.Body = nil
 		r.ContentLength = 0
+
+		r.URL.RawQuery += dataString
 
 		// And proxy the request
 		h.ServeHTTP(w, r)
-	}
+	}, "/authorize")
 }
