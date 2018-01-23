@@ -87,16 +87,39 @@ func (fh *FileHandler) uploadRemoteFile(ctx context.Context, apiResponse *api.Re
 		timeout = apiResponse.ObjectStore.Timeout
 	}
 
-	ctx2, cancelFn := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	ctx2, ctxCancelFn := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	objectStorageUploadsOpen.Inc()
 
 	fh.RemoteID = apiResponse.ObjectStore.ObjectID
-	fh.RemoteURL = apiResponse.ObjectStore.StoreURL
+	fh.RemoteURL = apiResponse.ObjectStore.GetURL
+
+	finished := make(chan struct{})
+
+	cancelFn := func() {
+		ctxCancelFn()
+
+		<- finished
+
+		fmt.Println("Executing DELETE request against", apiResponse.ObjectStore.DeleteURL)
+
+		req, err := http.NewRequest("DELETE", apiResponse.ObjectStore.DeleteURL, nil)
+		if err == nil {
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				objectStorageUploadRequestsRequestFailed.Inc()
+				fmt.Println(fmt.Errorf(req.Method, "request %q: %v", apiResponse.ObjectStore.DeleteURL, err))
+				return
+			}
+			defer resp.Body.Close()
+			fmt.Println(req.Method, "request", apiResponse.ObjectStore.DeleteURL, ":", resp.StatusCode, resp.Status)
+		}
+	}
 
 	go func() {
-		defer cancelFn()
+		defer ctxCancelFn()
 		defer objectStorageUploadsOpen.Dec()
 		defer pr.Close()
+		defer close(finished)
 
 		req = req.WithContext(ctx2)
 

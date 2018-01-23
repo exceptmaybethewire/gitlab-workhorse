@@ -68,6 +68,8 @@ func NewAPI(myURL *url.URL, version string, roundTripper *badgateway.RoundTrippe
 type HandleFunc func(http.ResponseWriter, *http.Request, *Response)
 
 type RemoteObjectStore struct {
+	GetURL string
+	DeleteURL string
 	// StoreURL is the temporary URL to which upload the first found file
 	StoreURL string
 	// ObjectID is a unique identifier of object storage upload
