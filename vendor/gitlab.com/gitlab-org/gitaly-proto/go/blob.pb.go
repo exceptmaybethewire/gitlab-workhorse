@@ -9,16 +9,23 @@ It is generated from these files:
 	commit.proto
 	deprecated-services.proto
 	diff.proto
+	namespace.proto
 	notifications.proto
+	operations.proto
 	ref.proto
 	repository-service.proto
 	shared.proto
 	smarthttp.proto
 	ssh.proto
+	wiki.proto
 
 It has these top-level messages:
 	GetBlobRequest
 	GetBlobResponse
+	GetBlobsRequest
+	GetBlobsResponse
+	CommitStatsRequest
+	CommitStatsResponse
 	CommitIsAncestorRequest
 	CommitIsAncestorResponse
 	TreeEntryRequest
@@ -30,13 +37,54 @@ It has these top-level messages:
 	TreeEntry
 	GetTreeEntriesRequest
 	GetTreeEntriesResponse
+	ListFilesRequest
+	ListFilesResponse
+	FindCommitRequest
+	FindCommitResponse
+	FindAllCommitsRequest
+	FindAllCommitsResponse
+	FindCommitsRequest
+	FindCommitsResponse
+	CommitLanguagesRequest
+	CommitLanguagesResponse
+	RawBlameRequest
+	RawBlameResponse
+	LastCommitForPathRequest
+	LastCommitForPathResponse
+	CommitsByMessageRequest
+	CommitsByMessageResponse
 	CommitDiffRequest
 	CommitDiffResponse
 	CommitDeltaRequest
 	CommitDelta
 	CommitDeltaResponse
+	CommitPatchRequest
+	CommitPatchResponse
+	RawDiffRequest
+	RawDiffResponse
+	RawPatchRequest
+	RawPatchResponse
+	AddNamespaceRequest
+	RemoveNamespaceRequest
+	RenameNamespaceRequest
+	NamespaceExistsRequest
+	NamespaceExistsResponse
+	AddNamespaceResponse
+	RemoveNamespaceResponse
+	RenameNamespaceResponse
 	PostReceiveRequest
 	PostReceiveResponse
+	UserCreateBranchRequest
+	UserCreateBranchResponse
+	UserDeleteBranchRequest
+	UserDeleteBranchResponse
+	UserDeleteTagRequest
+	UserDeleteTagResponse
+	UserCreateTagRequest
+	UserCreateTagResponse
+	UserMergeBranchRequest
+	UserMergeBranchResponse
+	OperationBranchUpdate
 	FindDefaultBranchNameRequest
 	FindDefaultBranchNameResponse
 	FindAllBranchNamesRequest
@@ -49,12 +97,45 @@ It has these top-level messages:
 	FindLocalBranchesResponse
 	FindLocalBranchResponse
 	FindLocalBranchCommitAuthor
+	FindAllBranchesRequest
+	FindAllBranchesResponse
+	FindAllTagsRequest
+	FindAllTagsResponse
+	RefExistsRequest
+	RefExistsResponse
+	CreateBranchRequest
+	CreateBranchResponse
+	DeleteBranchRequest
+	DeleteBranchResponse
+	FindBranchRequest
+	FindBranchResponse
 	RepositoryExistsRequest
 	RepositoryExistsResponse
+	RepackIncrementalRequest
+	RepackIncrementalResponse
+	RepackFullRequest
+	RepackFullResponse
+	GarbageCollectRequest
+	GarbageCollectResponse
+	RepositorySizeRequest
+	RepositorySizeResponse
+	ApplyGitattributesRequest
+	ApplyGitattributesResponse
+	FetchRemoteRequest
+	FetchRemoteResponse
+	CreateRepositoryRequest
+	CreateRepositoryResponse
+	GetArchiveRequest
+	GetArchiveResponse
+	HasLocalBranchesRequest
+	HasLocalBranchesResponse
 	Repository
 	GitCommit
 	CommitAuthor
 	ExitStatus
+	Branch
+	Tag
+	User
 	InfoRefsRequest
 	InfoRefsResponse
 	PostUploadPackRequest
@@ -65,6 +146,9 @@ It has these top-level messages:
 	SSHUploadPackResponse
 	SSHReceivePackRequest
 	SSHReceivePackResponse
+	WikiPageVersion
+	WikiGetPageVersionsRequest
+	WikiGetPageVersionsResponse
 */
 package gitaly
 
@@ -157,9 +241,80 @@ func (m *GetBlobResponse) GetOid() string {
 	return ""
 }
 
+type GetBlobsRequest struct {
+	Repository *Repository `protobuf:"bytes,1,opt,name=repository" json:"repository,omitempty"`
+	// Object IDs (SHA1) of the blobs we want to get
+	Oids []string `protobuf:"bytes,2,rep,name=oids" json:"oids,omitempty"`
+	// Maximum number of bytes we want to receive. Use '-1' to get the full blobs no matter how big.
+	Limit int64 `protobuf:"varint,3,opt,name=limit" json:"limit,omitempty"`
+}
+
+func (m *GetBlobsRequest) Reset()                    { *m = GetBlobsRequest{} }
+func (m *GetBlobsRequest) String() string            { return proto.CompactTextString(m) }
+func (*GetBlobsRequest) ProtoMessage()               {}
+func (*GetBlobsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *GetBlobsRequest) GetRepository() *Repository {
+	if m != nil {
+		return m.Repository
+	}
+	return nil
+}
+
+func (m *GetBlobsRequest) GetOids() []string {
+	if m != nil {
+		return m.Oids
+	}
+	return nil
+}
+
+func (m *GetBlobsRequest) GetLimit() int64 {
+	if m != nil {
+		return m.Limit
+	}
+	return 0
+}
+
+type GetBlobsResponse struct {
+	// Blob size; present only on the first message per blob
+	Size int64 `protobuf:"varint,1,opt,name=size" json:"size,omitempty"`
+	// Chunk of blob data
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// Object ID of the current blob. Only present on the first message per blob. Empty if no blob was found.
+	Oid string `protobuf:"bytes,3,opt,name=oid" json:"oid,omitempty"`
+}
+
+func (m *GetBlobsResponse) Reset()                    { *m = GetBlobsResponse{} }
+func (m *GetBlobsResponse) String() string            { return proto.CompactTextString(m) }
+func (*GetBlobsResponse) ProtoMessage()               {}
+func (*GetBlobsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+func (m *GetBlobsResponse) GetSize() int64 {
+	if m != nil {
+		return m.Size
+	}
+	return 0
+}
+
+func (m *GetBlobsResponse) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+func (m *GetBlobsResponse) GetOid() string {
+	if m != nil {
+		return m.Oid
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*GetBlobRequest)(nil), "gitaly.GetBlobRequest")
 	proto.RegisterType((*GetBlobResponse)(nil), "gitaly.GetBlobResponse")
+	proto.RegisterType((*GetBlobsRequest)(nil), "gitaly.GetBlobsRequest")
+	proto.RegisterType((*GetBlobsResponse)(nil), "gitaly.GetBlobsResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -177,6 +332,11 @@ type BlobServiceClient interface {
 	// ID. We use a stream to return a chunked arbitrarily large binary
 	// response
 	GetBlob(ctx context.Context, in *GetBlobRequest, opts ...grpc.CallOption) (BlobService_GetBlobClient, error)
+	// GetBlobsBySHA returns the contents of a blob objects referenced by their object
+	// ID. We use a stream to return a chunked arbitrarily large binary response.
+	// The blobs are sent in a continous stream, the caller is responsible for spliting
+	// them up into multiple blobs by their object IDs.
+	GetBlobs(ctx context.Context, in *GetBlobsRequest, opts ...grpc.CallOption) (BlobService_GetBlobsClient, error)
 }
 
 type blobServiceClient struct {
@@ -219,6 +379,38 @@ func (x *blobServiceGetBlobClient) Recv() (*GetBlobResponse, error) {
 	return m, nil
 }
 
+func (c *blobServiceClient) GetBlobs(ctx context.Context, in *GetBlobsRequest, opts ...grpc.CallOption) (BlobService_GetBlobsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_BlobService_serviceDesc.Streams[1], c.cc, "/gitaly.BlobService/GetBlobs", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &blobServiceGetBlobsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type BlobService_GetBlobsClient interface {
+	Recv() (*GetBlobsResponse, error)
+	grpc.ClientStream
+}
+
+type blobServiceGetBlobsClient struct {
+	grpc.ClientStream
+}
+
+func (x *blobServiceGetBlobsClient) Recv() (*GetBlobsResponse, error) {
+	m := new(GetBlobsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for BlobService service
 
 type BlobServiceServer interface {
@@ -226,6 +418,11 @@ type BlobServiceServer interface {
 	// ID. We use a stream to return a chunked arbitrarily large binary
 	// response
 	GetBlob(*GetBlobRequest, BlobService_GetBlobServer) error
+	// GetBlobsBySHA returns the contents of a blob objects referenced by their object
+	// ID. We use a stream to return a chunked arbitrarily large binary response.
+	// The blobs are sent in a continous stream, the caller is responsible for spliting
+	// them up into multiple blobs by their object IDs.
+	GetBlobs(*GetBlobsRequest, BlobService_GetBlobsServer) error
 }
 
 func RegisterBlobServiceServer(s *grpc.Server, srv BlobServiceServer) {
@@ -253,6 +450,27 @@ func (x *blobServiceGetBlobServer) Send(m *GetBlobResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _BlobService_GetBlobs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetBlobsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BlobServiceServer).GetBlobs(m, &blobServiceGetBlobsServer{stream})
+}
+
+type BlobService_GetBlobsServer interface {
+	Send(*GetBlobsResponse) error
+	grpc.ServerStream
+}
+
+type blobServiceGetBlobsServer struct {
+	grpc.ServerStream
+}
+
+func (x *blobServiceGetBlobsServer) Send(m *GetBlobsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _BlobService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gitaly.BlobService",
 	HandlerType: (*BlobServiceServer)(nil),
@@ -263,6 +481,11 @@ var _BlobService_serviceDesc = grpc.ServiceDesc{
 			Handler:       _BlobService_GetBlob_Handler,
 			ServerStreams: true,
 		},
+		{
+			StreamName:    "GetBlobs",
+			Handler:       _BlobService_GetBlobs_Handler,
+			ServerStreams: true,
+		},
 	},
 	Metadata: "blob.proto",
 }
@@ -270,19 +493,22 @@ var _BlobService_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("blob.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 217 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0x90, 0x31, 0x4b, 0xc7, 0x30,
-	0x10, 0xc5, 0x8d, 0xd1, 0xbf, 0x78, 0x2d, 0x2a, 0x87, 0x68, 0xe9, 0x54, 0x3a, 0x75, 0x2a, 0x52,
-	0x77, 0x07, 0x17, 0x07, 0x71, 0x89, 0x9f, 0x20, 0xb1, 0x87, 0x06, 0xa2, 0x57, 0x93, 0x28, 0xd4,
-	0x4f, 0x2f, 0x4d, 0x6c, 0x51, 0xdc, 0x5e, 0x5e, 0x92, 0xf7, 0x7b, 0x77, 0x00, 0xc6, 0xb1, 0xe9,
-	0x27, 0xcf, 0x91, 0x71, 0xf7, 0x6c, 0xa3, 0x76, 0x73, 0x5d, 0x86, 0x17, 0xed, 0x69, 0xcc, 0x6e,
-	0xeb, 0xe0, 0xe4, 0x8e, 0xe2, 0xad, 0x63, 0xa3, 0xe8, 0xfd, 0x83, 0x42, 0xc4, 0x01, 0xc0, 0xd3,
-	0xc4, 0xc1, 0x46, 0xf6, 0x73, 0x25, 0x1a, 0xd1, 0x15, 0x03, 0xf6, 0xf9, 0x73, 0xaf, 0xb6, 0x1b,
-	0xf5, 0xeb, 0x15, 0x9e, 0x81, 0x64, 0x3b, 0x56, 0xfb, 0x8d, 0xe8, 0x8e, 0xd5, 0x22, 0xf1, 0x1c,
-	0x0e, 0x9d, 0x7d, 0xb5, 0xb1, 0x92, 0x8d, 0xe8, 0xa4, 0xca, 0x87, 0xf6, 0x1e, 0x4e, 0x37, 0x5a,
-	0x98, 0xf8, 0x2d, 0x10, 0x22, 0x1c, 0x04, 0xfb, 0x45, 0x09, 0x24, 0x55, 0xd2, 0x8b, 0x37, 0xea,
-	0xa8, 0x53, 0x5e, 0xa9, 0x92, 0x5e, 0x11, 0x72, 0x43, 0x0c, 0x0f, 0x50, 0x2c, 0x49, 0x8f, 0xe4,
-	0x3f, 0xed, 0x13, 0xe1, 0x0d, 0x1c, 0xfd, 0x64, 0xe3, 0xc5, 0x5a, 0xf7, 0xef, 0x68, 0xf5, 0xe5,
-	0x3f, 0x3f, 0x97, 0x68, 0xf7, 0xae, 0x84, 0xd9, 0xa5, 0x85, 0x5c, 0x7f, 0x07, 0x00, 0x00, 0xff,
-	0xff, 0xab, 0x77, 0x1a, 0x6d, 0x34, 0x01, 0x00, 0x00,
+	// 266 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x92, 0x31, 0x4f, 0xc3, 0x30,
+	0x10, 0x85, 0x71, 0x5d, 0x0a, 0xbd, 0x56, 0x50, 0x9d, 0x10, 0x58, 0x99, 0xa2, 0x4c, 0x99, 0x22,
+	0x14, 0x76, 0x24, 0x58, 0x18, 0x60, 0x32, 0xbf, 0x20, 0x21, 0x27, 0xb0, 0x64, 0xb8, 0x60, 0x1b,
+	0xa4, 0xf2, 0x2b, 0xf8, 0xc9, 0x28, 0x0e, 0x49, 0x81, 0x8a, 0xa9, 0xdb, 0xcb, 0xbb, 0xcb, 0x7b,
+	0x9f, 0x6c, 0x03, 0xd4, 0x96, 0xeb, 0xa2, 0x75, 0x1c, 0x18, 0x67, 0x8f, 0x26, 0x54, 0x76, 0x9d,
+	0x2c, 0xfd, 0x53, 0xe5, 0xa8, 0xe9, 0xdd, 0xcc, 0xc2, 0xd1, 0x0d, 0x85, 0x6b, 0xcb, 0xb5, 0xa6,
+	0xd7, 0x37, 0xf2, 0x01, 0x4b, 0x00, 0x47, 0x2d, 0x7b, 0x13, 0xd8, 0xad, 0x95, 0x48, 0x45, 0xbe,
+	0x28, 0xb1, 0xe8, 0x7f, 0x2e, 0xf4, 0x38, 0xd1, 0x3f, 0xb6, 0x70, 0x05, 0x92, 0x4d, 0xa3, 0x26,
+	0xa9, 0xc8, 0xe7, 0xba, 0x93, 0x78, 0x02, 0xfb, 0xd6, 0x3c, 0x9b, 0xa0, 0x64, 0x2a, 0x72, 0xa9,
+	0xfb, 0x8f, 0xec, 0x16, 0x8e, 0xc7, 0x36, 0xdf, 0xf2, 0x8b, 0x27, 0x44, 0x98, 0x7a, 0xf3, 0x41,
+	0xb1, 0x48, 0xea, 0xa8, 0x3b, 0xaf, 0xa9, 0x42, 0x15, 0xf3, 0x96, 0x3a, 0xea, 0xa1, 0x42, 0x8e,
+	0x15, 0x19, 0x8f, 0x61, 0x7e, 0x17, 0x76, 0x84, 0x29, 0x9b, 0xc6, 0xab, 0x49, 0x2a, 0xf3, 0xb9,
+	0x8e, 0xfa, 0x1f, 0xfa, 0x3b, 0x58, 0x6d, 0x0a, 0x77, 0xc5, 0x2f, 0x3f, 0x05, 0x2c, 0xba, 0xac,
+	0x7b, 0x72, 0xef, 0xe6, 0x81, 0xf0, 0x12, 0x0e, 0xbe, 0xd3, 0xf1, 0x74, 0x40, 0xfe, 0x7d, 0x35,
+	0xc9, 0xd9, 0x96, 0xdf, 0x53, 0x64, 0x7b, 0xe7, 0x02, 0xaf, 0xe0, 0x70, 0xa0, 0xc3, 0xbf, 0x8b,
+	0xc3, 0x01, 0x25, 0x6a, 0x7b, 0xb0, 0x89, 0xa8, 0x67, 0xf1, 0x4d, 0x5c, 0x7c, 0x05, 0x00, 0x00,
+	0xff, 0xff, 0x99, 0x07, 0x5e, 0x8d, 0x37, 0x02, 0x00, 0x00,
 }

@@ -28,7 +28,8 @@ func handleUploadPack(w *GitHttpResponseWriter, r *http.Request, a *api.Response
 	action := getService(r)
 	writePostRPCHeader(w, action)
 
-	if a.GitalyServer.Address == "" {
+	if Testing && a.GitalyServer.Address == "" {
+		// This code path is no longer reachable in GitLab 10.0
 		err = handleUploadPackLocally(a, r, buffer, w, action)
 	} else {
 		err = handleUploadPackWithGitaly(r.Context(), a, buffer, w)
@@ -64,7 +65,7 @@ func handleUploadPackWithGitaly(ctx context.Context, a *api.Response, clientRequ
 		return fmt.Errorf("smarthttp.UploadPack: %v", err)
 	}
 
-	if err := smarthttp.UploadPack(ctx, &a.Repository, clientRequest, clientResponse); err != nil {
+	if err := smarthttp.UploadPack(ctx, &a.Repository, clientRequest, clientResponse, gitConfigOptions(a)); err != nil {
 		return fmt.Errorf("smarthttp.UploadPack: %v", err)
 	}
 

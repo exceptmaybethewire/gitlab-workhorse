@@ -5,22 +5,26 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 
 func TestParseBasename(t *testing.T) {
-	for _, testCase := range []struct{ in, out string }{
-		{"", "tar.gz"},
-		{".tar.gz", "tar.gz"},
-		{".tgz", "tar.gz"},
-		{".gz", "tar.gz"},
-		{".tar.bz2", "tar.bz2"},
-		{".tbz", "tar.bz2"},
-		{".tbz2", "tar.bz2"},
-		{".tb2", "tar.bz2"},
-		{".bz2", "tar.bz2"},
+	for _, testCase := range []struct {
+		in  string
+		out pb.GetArchiveRequest_Format
+	}{
+		{"archive", pb.GetArchiveRequest_TAR_GZ},
+		{"master.tar.gz", pb.GetArchiveRequest_TAR_GZ},
+		{"foo-master.tgz", pb.GetArchiveRequest_TAR_GZ},
+		{"foo-v1.2.1.gz", pb.GetArchiveRequest_TAR_GZ},
+		{"foo.tar.bz2", pb.GetArchiveRequest_TAR_BZ2},
+		{"archive.tbz", pb.GetArchiveRequest_TAR_BZ2},
+		{"archive.tbz2", pb.GetArchiveRequest_TAR_BZ2},
+		{"archive.tb2", pb.GetArchiveRequest_TAR_BZ2},
+		{"archive.bz2", pb.GetArchiveRequest_TAR_BZ2},
 	} {
-		basename := "archive" + testCase.in
+		basename := testCase.in
 		out, ok := parseBasename(basename)
 		if !ok {
 			t.Fatalf("parseBasename did not recognize %q", basename)
@@ -47,11 +51,14 @@ func TestFinalizeArchive(t *testing.T) {
 }
 
 func TestSetArchiveHeaders(t *testing.T) {
-	for _, testCase := range []struct{ in, out string }{
-		{"zip", "application/zip"},
-		{"zippy", "application/octet-stream"},
-		{"rezip", "application/octet-stream"},
-		{"_anything_", "application/octet-stream"},
+	for _, testCase := range []struct {
+		in  pb.GetArchiveRequest_Format
+		out string
+	}{
+		{pb.GetArchiveRequest_ZIP, "application/zip"},
+		{pb.GetArchiveRequest_TAR, "application/octet-stream"},
+		{pb.GetArchiveRequest_TAR_GZ, "application/octet-stream"},
+		{pb.GetArchiveRequest_TAR_BZ2, "application/octet-stream"},
 	} {
 		w := httptest.NewRecorder()
 

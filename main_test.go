@@ -20,6 +20,7 @@ import (
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
@@ -41,6 +42,8 @@ var checkoutDir = path.Join(scratchDir, "test")
 var cacheDir = path.Join(scratchDir, "cache")
 
 func TestMain(m *testing.M) {
+	git.Testing = true
+
 	source := "https://gitlab.com/gitlab-org/gitlab-test.git"
 	clonePath := path.Join(testRepoRoot, testRepo)
 	if _, err := os.Stat(clonePath); err != nil {
@@ -437,6 +440,24 @@ func TestArtifactsGetSingleFile(t *testing.T) {
 	assertNginxResponseBuffering(t, "no", resp, "GET %q: nginx response buffering", resourcePath)
 }
 
+func TestSendURLForArtifacts(t *testing.T) {
+	fileContents := "12345678901234567890\n"
+
+	server := httptest.NewServer(http.FileServer(http.Dir("testdata")))
+	defer server.Close()
+
+	// We manually created this txt file in the gitlab-workhorse Git repository
+	url := server.URL + "/test-file.txt"
+	jsonParams := fmt.Sprintf(`{"URL":%q}`, url)
+
+	resourcePath := `/namespace/project/builds/123/artifacts/file/download`
+	resp, body, err := doSendDataRequest(resourcePath, "send-url", jsonParams)
+	require.NoError(t, err)
+
+	assert.Equal(t, 200, resp.StatusCode, "GET %q: status code", resourcePath)
+	assert.Equal(t, fileContents, string(body), "GET %q: response body", resourcePath)
+}
+
 func TestGetGitBlob(t *testing.T) {
 	blobId := "50b27c6518be44c42c4d87966ae2481ce895624c" // the LICENSE file in the test repository
 	blobLength := 1075
@@ -717,8 +738,9 @@ func runOrFail(t *testing.T, cmd *exec.Cmd) {
 func gitOkBody(t *testing.T) *api.Response {
 	repoPath := repoPath(t)
 	return &api.Response{
-		GL_ID:    "user-123",
-		RepoPath: repoPath,
+		GL_ID:       "user-123",
+		GL_USERNAME: "username",
+		RepoPath:    repoPath,
 		Repository: pb.Repository{
 			StorageName:  "default",
 			RelativePath: "foo/bar.git",

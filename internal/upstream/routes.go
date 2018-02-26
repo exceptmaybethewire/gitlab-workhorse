@@ -20,6 +20,7 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/redis"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/sendfile"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/sendurl"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/staticpages"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/terminal"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/upload"
@@ -140,6 +141,7 @@ func (u *Upstream) configureRoutes() {
 		git.SendDiff,
 		git.SendPatch,
 		artifacts.SendEntry,
+		sendurl.SendURL,
 	)
 
 	uploadAccelerateProxy := upload.Accelerate(path.Join(u.DocumentRoot, "uploads/tmp"), proxy)

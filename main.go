@@ -53,6 +53,7 @@ var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowe
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
 var apiCiLongPollingDuration = flag.Duration("apiCiLongPollingDuration", 0, "Long polling duration for job requesting for runners (default 0s - disabled)")
 
+var logFile = flag.String("logFile", "", "Log file to be used")
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. 'localhost:9229'")
 
 var logConfig = logConfiguration{}

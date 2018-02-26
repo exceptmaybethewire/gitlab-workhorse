@@ -10,12 +10,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"syscall"
+	"regexp"
 	"time"
 
+	pb "gitlab.com/gitlab-org/gitaly-proto/go"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
 
@@ -24,10 +25,13 @@ import (
 
 type archive struct{ senddata.Prefix }
 type archiveParams struct {
-	RepoPath      string
-	ArchivePath   string
-	ArchivePrefix string
-	CommitId      string
+	RepoPath         string
+	ArchivePath      string
+	ArchivePrefix    string
+	CommitId         string
+	GitalyServer     gitaly.Server
+	GitalyRepository pb.Repository
+	DisableCache     bool
 }
 
 var (
@@ -52,7 +56,6 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 		return
 	}
 
-	var format string
 	urlPath := r.URL.Path
 	format, ok := parseBasename(filepath.Base(urlPath))
 	if !ok {
@@ -60,122 +63,105 @@ func (a *archive) Inject(w http.ResponseWriter, r *http.Request, sendData string
 		return
 	}
 
+	cacheEnabled := !params.DisableCache
 	archiveFilename := path.Base(params.ArchivePath)
 
-	if cachedArchive, err := os.Open(params.ArchivePath); err == nil {
-		defer cachedArchive.Close()
-		gitArchiveCache.WithLabelValues("hit").Inc()
-		setArchiveHeaders(w, format, archiveFilename)
-		// Even if somebody deleted the cachedArchive from disk since we opened
-		// the file, Unix file semantics guarantee we can still read from the
-		// open file in this process.
-		http.ServeContent(w, r, "", time.Unix(0, 0), cachedArchive)
-		return
+	if cacheEnabled {
+		cachedArchive, err := os.Open(params.ArchivePath)
+		if err == nil {
+			defer cachedArchive.Close()
+			gitArchiveCache.WithLabelValues("hit").Inc()
+			setArchiveHeaders(w, format, archiveFilename)
+			// Even if somebody deleted the cachedArchive from disk since we opened
+			// the file, Unix file semantics guarantee we can still read from the
+			// open file in this process.
+			http.ServeContent(w, r, "", time.Unix(0, 0), cachedArchive)
+			return
+		}
 	}
 
 	gitArchiveCache.WithLabelValues("miss").Inc()
 
-	// We assume the tempFile has a unique name so that concurrent requests are
-	// safe. We create the tempfile in the same directory as the final cached
-	// archive we want to create so that we can use an atomic link(2) operation
-	// to finalize the cached archive.
-	tempFile, err := prepareArchiveTempfile(path.Dir(params.ArchivePath), archiveFilename)
-	if err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendArchive: create tempfile: %v", err))
-		return
-	}
-	defer tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	var tempFile *os.File
+	var err error
 
-	compressCmd, archiveFormat := parseArchiveFormat(format)
-
-	archiveCmd := gitCommand("", "", "git", "--git-dir="+params.RepoPath, "archive", "--format="+archiveFormat, "--prefix="+params.ArchivePrefix+"/", params.CommitId)
-	archiveStdout, err := archiveCmd.StdoutPipe()
-	if err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendArchive: archive stdout: %v", err))
-		return
-	}
-	defer archiveStdout.Close()
-	if err := archiveCmd.Start(); err != nil {
-		helper.Fail500(w, r, fmt.Errorf("SendArchive: start %v: %v", archiveCmd.Args, err))
-		return
-	}
-	defer helper.CleanUpProcessGroup(archiveCmd) // Ensure brute force subprocess clean-up
-
-	var stdout io.ReadCloser
-	if compressCmd == nil {
-		stdout = archiveStdout
-	} else {
-		compressCmd.Stdin = archiveStdout
-		compressCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-		stdout, err = compressCmd.StdoutPipe()
+	if cacheEnabled {
+		// We assume the tempFile has a unique name so that concurrent requests are
+		// safe. We create the tempfile in the same directory as the final cached
+		// archive we want to create so that we can use an atomic link(2) operation
+		// to finalize the cached archive.
+		tempFile, err = prepareArchiveTempfile(path.Dir(params.ArchivePath), archiveFilename)
 		if err != nil {
-			helper.Fail500(w, r, fmt.Errorf("SendArchive: compress stdout: %v", err))
+			helper.Fail500(w, r, fmt.Errorf("SendArchive: create tempfile: %v", err))
 			return
 		}
-		defer stdout.Close()
-
-		if err := compressCmd.Start(); err != nil {
-			helper.Fail500(w, r, fmt.Errorf("SendArchive: start %v: %v", compressCmd.Args, err))
-			return
-		}
-		defer helper.CleanUpProcessGroup(compressCmd)
-
-		archiveStdout.Close()
+		defer tempFile.Close()
+		defer os.Remove(tempFile.Name())
 	}
-	// Every Read() from stdout will be synchronously written to tempFile
-	// before it comes out the TeeReader.
-	archiveReader := io.TeeReader(stdout, tempFile)
+
+	var archiveReader io.Reader
+	if params.GitalyServer.Address != "" {
+		archiveReader, err = handleArchiveWithGitaly(r, params, format)
+
+		if err != nil {
+			err = fmt.Errorf("operations.GetArchive: %v", err)
+		}
+	} else {
+		archiveReader, err = newArchiveReader(r.Context(), params.RepoPath, format, params.ArchivePrefix, params.CommitId)
+	}
+	if err != nil {
+		helper.Fail500(w, r, err)
+		return
+	}
+
+	reader := archiveReader
+	if cacheEnabled {
+		reader = io.TeeReader(archiveReader, tempFile)
+	}
 
 	// Start writing the response
 	setArchiveHeaders(w, format, archiveFilename)
 	w.WriteHeader(200) // Don't bother with HTTP 500 from this point on, just return
-	if _, err := io.Copy(w, archiveReader); err != nil {
+	if _, err := io.Copy(w, reader); err != nil {
 		helper.LogError(r, &copyError{fmt.Errorf("SendArchive: copy 'git archive' output: %v", err)})
 		return
 	}
-	if err := archiveCmd.Wait(); err != nil {
-		helper.LogError(r, fmt.Errorf("SendArchive: archiveCmd: %v", err))
-		return
-	}
-	if compressCmd != nil {
-		if err := compressCmd.Wait(); err != nil {
-			helper.LogError(r, fmt.Errorf("SendArchive: compressCmd: %v", err))
+
+	if cacheEnabled {
+		err := finalizeCachedArchive(tempFile, params.ArchivePath)
+		if err != nil {
+			helper.LogError(r, fmt.Errorf("SendArchive: finalize cached archive: %v", err))
 			return
 		}
 	}
-
-	if err := finalizeCachedArchive(tempFile, params.ArchivePath); err != nil {
-		helper.LogError(r, fmt.Errorf("SendArchive: finalize cached archive: %v", err))
-		return
-	}
 }
 
-func setArchiveHeaders(w http.ResponseWriter, format string, archiveFilename string) {
+func handleArchiveWithGitaly(r *http.Request, params archiveParams, format pb.GetArchiveRequest_Format) (io.Reader, error) {
+	c, err := gitaly.NewRepositoryClient(params.GitalyServer)
+	if err != nil {
+		return nil, err
+	}
+
+	request := &pb.GetArchiveRequest{
+		Repository: &params.GitalyRepository,
+		CommitId:   params.CommitId,
+		Prefix:     params.ArchivePrefix,
+		Format:     format,
+	}
+
+	return c.ArchiveReader(r.Context(), request)
+}
+
+func setArchiveHeaders(w http.ResponseWriter, format pb.GetArchiveRequest_Format, archiveFilename string) {
 	w.Header().Del("Content-Length")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, archiveFilename))
-	if format == "zip" {
+	if format == pb.GetArchiveRequest_ZIP {
 		w.Header().Set("Content-Type", "application/zip")
 	} else {
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}
 	w.Header().Set("Content-Transfer-Encoding", "binary")
 	w.Header().Set("Cache-Control", "private")
-}
-
-func parseArchiveFormat(format string) (*exec.Cmd, string) {
-	switch format {
-	case "tar":
-		return nil, "tar"
-	case "tar.gz":
-		return exec.Command("gzip", "-c", "-n"), "tar"
-	case "tar.bz2":
-		return exec.Command("bzip2", "-c"), "tar"
-	case "zip":
-		return nil, "zip"
-	}
-	return nil, "unknown"
 }
 
 func prepareArchiveTempfile(dir string, prefix string) (*os.File, error) {
@@ -196,20 +182,29 @@ func finalizeCachedArchive(tempFile *os.File, archivePath string) error {
 	return nil
 }
 
-func parseBasename(basename string) (string, bool) {
-	var format string
+var (
+	patternZip    = regexp.MustCompile(`\.zip$`)
+	patternTar    = regexp.MustCompile(`\.tar$`)
+	patternTarGz  = regexp.MustCompile(`\.(tar\.gz|tgz|gz)$`)
+	patternTarBz2 = regexp.MustCompile(`\.(tar\.bz2|tbz|tbz2|tb2|bz2)$`)
+)
 
-	switch basename {
-	case "archive.zip":
-		format = "zip"
-	case "archive.tar":
-		format = "tar"
-	case "archive", "archive.tar.gz", "archive.tgz", "archive.gz":
-		format = "tar.gz"
-	case "archive.tar.bz2", "archive.tbz", "archive.tbz2", "archive.tb2", "archive.bz2":
-		format = "tar.bz2"
+func parseBasename(basename string) (pb.GetArchiveRequest_Format, bool) {
+	var format pb.GetArchiveRequest_Format
+
+	switch {
+	case (basename == "archive"):
+		format = pb.GetArchiveRequest_TAR_GZ
+	case patternZip.MatchString(basename):
+		format = pb.GetArchiveRequest_ZIP
+	case patternTar.MatchString(basename):
+		format = pb.GetArchiveRequest_TAR
+	case patternTarGz.MatchString(basename):
+		format = pb.GetArchiveRequest_TAR_GZ
+	case patternTarBz2.MatchString(basename):
+		format = pb.GetArchiveRequest_TAR_BZ2
 	default:
-		return "", false
+		return format, false
 	}
 
 	return format, true

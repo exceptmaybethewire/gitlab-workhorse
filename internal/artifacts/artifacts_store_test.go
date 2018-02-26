@@ -3,6 +3,8 @@ package artifacts
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
@@ -19,14 +21,21 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 
-func createTestZipArchive(t *testing.T) []byte {
+func createTestZipArchive(t *testing.T) (data []byte, md5Hash string) {
 	var buffer bytes.Buffer
 	archive := zip.NewWriter(&buffer)
 	fileInArchive, err := archive.Create("test.file")
 	require.NoError(t, err)
 	fmt.Fprint(fileInArchive, "test")
 	archive.Close()
-	return buffer.Bytes()
+	data = buffer.Bytes()
+
+	hasher := md5.New()
+	hasher.Write(data)
+	hexHash := hasher.Sum(nil)
+	md5Hash = hex.EncodeToString(hexHash)
+
+	return data, md5Hash
 }
 
 func createTestMultipartForm(t *testing.T, data []byte) (bytes.Buffer, string) {
@@ -46,7 +55,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	}
 	defer os.RemoveAll(tempPath)
 
-	archiveData := createTestZipArchive(t)
+	archiveData, md5 := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	storeServerCalled := 0
@@ -59,6 +68,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 		require.Equal(t, archiveData, receivedData)
 
 		storeServerCalled++
+		w.Header().Set("ETag", md5)
 		w.WriteHeader(200)
 	})
 
@@ -78,6 +88,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 		ObjectStore: api.RemoteObjectStore{
 			StoreURL: storeServer.URL + "/url/put",
 			ObjectID: "store-id",
+			GetURL:   storeServer.URL + "/store-id",
 		},
 	}
 
@@ -112,7 +123,7 @@ func TestUploadHandlerSendingToExternalStorageAndStorageServerUnreachable(t *tes
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	archiveData := createTestZipArchive(t)
+	archiveData, _ := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
@@ -141,7 +152,7 @@ func TestUploadHandlerSendingToExternalStorageAndInvalidURLIsUsed(t *testing.T) 
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	archiveData := createTestZipArchive(t)
+	archiveData, _ := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
@@ -182,7 +193,7 @@ func TestUploadHandlerSendingToExternalStorageAndItReturnsAnError(t *testing.T) 
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	archiveData := createTestZipArchive(t)
+	archiveData, _ := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
@@ -226,7 +237,7 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 	ts := testArtifactsUploadServer(t, authResponse, responseProcessor)
 	defer ts.Close()
 
-	archiveData := createTestZipArchive(t)
+	archiveData, _ := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
 	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)

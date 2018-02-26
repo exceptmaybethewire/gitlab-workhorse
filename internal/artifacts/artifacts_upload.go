@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,14 +12,14 @@ import (
 	"syscall"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/upload"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/zipartifacts"
 )
 
 type artifactsUploadProcessor struct {
-	TempPath     string
-	ObjectStore  api.RemoteObjectStore
+	opts         *filestore.SaveFileOpts
 	metadataFile string
 	stored       bool
 }
@@ -44,7 +45,7 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(fileName string, meta
 	return true, nil
 }
 
-func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer *multipart.Writer) error {
+func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName, fileName string, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
 
 	if formName != "file" {
@@ -55,7 +56,7 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 	}
 
 	// Create temporary file for metadata and store it's path
-	tempFile, err := ioutil.TempFile(a.TempPath, "metadata_")
+	tempFile, err := ioutil.TempFile(a.opts.LocalTempPath, "metadata_")
 	if err != nil {
 		return err
 	}
@@ -74,17 +75,17 @@ func (a *artifactsUploadProcessor) ProcessFile(formName, fileName string, writer
 		writer.WriteField("metadata.name", "metadata.gz")
 	}
 
-	if err := a.storeFile(formName, fileName, writer); err != nil {
+	if err := a.storeFile(ctx, formName, fileName, writer); err != nil {
 		return fmt.Errorf("storeFile: %v", err)
 	}
 	return nil
 }
 
-func (a *artifactsUploadProcessor) ProcessField(formName string, writer *multipart.Writer) error {
+func (a *artifactsUploadProcessor) ProcessField(ctx context.Context, formName string, writer *multipart.Writer) error {
 	return nil
 }
 
-func (a *artifactsUploadProcessor) Finalize() error {
+func (a *artifactsUploadProcessor) Finalize(ctx context.Context) error {
 	return nil
 }
 
@@ -105,10 +106,7 @@ func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 			return
 		}
 
-		mg := &artifactsUploadProcessor{
-			TempPath:    a.TempPath,
-			ObjectStore: a.ObjectStore,
-		}
+		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a)}
 		defer mg.Cleanup()
 
 		upload.HandleFileUploads(w, r, h, a.TempPath, mg)

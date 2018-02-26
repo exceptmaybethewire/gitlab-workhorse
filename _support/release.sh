@@ -1,6 +1,6 @@
 set -e
 
-remotes='https://dev.gitlab.org/gitlab/gitlab-workhorse.git https://gitlab.com/gitlab-org/gitlab-workhorse.git'
+remotes='https://gitlab.com/gitlab-org/gitlab-workhorse.git'
 
 main() {
   get_version

@@ -10,11 +10,11 @@ import (
 )
 
 type SmartHTTPClient struct {
-	pb.SmartHTTPClient
+	pb.SmartHTTPServiceClient
 }
 
-func (client *SmartHTTPClient) InfoRefsResponseReader(ctx context.Context, repo *pb.Repository, rpc string) (io.Reader, error) {
-	rpcRequest := &pb.InfoRefsRequest{Repository: repo}
+func (client *SmartHTTPClient) InfoRefsResponseReader(ctx context.Context, repo *pb.Repository, rpc string, gitConfigOptions []string) (io.Reader, error) {
+	rpcRequest := &pb.InfoRefsRequest{Repository: repo, GitConfigOptions: gitConfigOptions}
 
 	switch rpc {
 	case "git-upload-pack":
@@ -39,7 +39,7 @@ func infoRefsReader(stream infoRefsClient) io.Reader {
 	})
 }
 
-func (client *SmartHTTPClient) ReceivePack(ctx context.Context, repo *pb.Repository, glId string, glRepository string, clientRequest io.Reader, clientResponse io.Writer) error {
+func (client *SmartHTTPClient) ReceivePack(ctx context.Context, repo *pb.Repository, glId string, glUsername string, glRepository string, clientRequest io.Reader, clientResponse io.Writer) error {
 	stream, err := client.PostReceivePack(ctx)
 	if err != nil {
 		return err
@@ -48,6 +48,7 @@ func (client *SmartHTTPClient) ReceivePack(ctx context.Context, repo *pb.Reposit
 	rpcRequest := &pb.PostReceivePackRequest{
 		Repository:   repo,
 		GlId:         glId,
+		GlUsername:   glUsername,
 		GlRepository: glRepository,
 	}
 
@@ -85,14 +86,15 @@ func (client *SmartHTTPClient) ReceivePack(ctx context.Context, repo *pb.Reposit
 	return nil
 }
 
-func (client *SmartHTTPClient) UploadPack(ctx context.Context, repo *pb.Repository, clientRequest io.Reader, clientResponse io.Writer) error {
+func (client *SmartHTTPClient) UploadPack(ctx context.Context, repo *pb.Repository, clientRequest io.Reader, clientResponse io.Writer, gitConfigOptions []string) error {
 	stream, err := client.PostUploadPack(ctx)
 	if err != nil {
 		return err
 	}
 
 	rpcRequest := &pb.PostUploadPackRequest{
-		Repository: repo,
+		Repository:       repo,
+		GitConfigOptions: gitConfigOptions,
 	}
 
 	if err := stream.Send(rpcRequest); err != nil {

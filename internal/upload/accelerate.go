@@ -1,13 +1,14 @@
 package upload
 
 import (
+	"context"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/secret"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 )
 
 const RewrittenFieldsHeader = "Gitlab-Workhorse-Multipart-Fields"
@@ -29,7 +30,7 @@ func Accelerate(tempDir string, h http.Handler) http.Handler {
 	})
 }
 
-func (s *savedFileTracker) ProcessFile(fieldName, fileName string, _ *multipart.Writer) error {
+func (s *savedFileTracker) ProcessFile(_ context.Context, fieldName, fileName string, _ *multipart.Writer) error {
 	if s.rewrittenFields == nil {
 		s.rewrittenFields = make(map[string]string)
 	}
@@ -37,11 +38,11 @@ func (s *savedFileTracker) ProcessFile(fieldName, fileName string, _ *multipart.
 	return nil
 }
 
-func (_ *savedFileTracker) ProcessField(_ string, _ *multipart.Writer) error {
+func (_ *savedFileTracker) ProcessField(_ context.Context, _ string, _ *multipart.Writer) error {
 	return nil
 }
 
-func (s *savedFileTracker) Finalize() error {
+func (s *savedFileTracker) Finalize(_ context.Context) error {
 	if s.rewrittenFields == nil {
 		return nil
 	}

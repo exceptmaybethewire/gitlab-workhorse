@@ -19,7 +19,7 @@ import (
 
 const NginxResponseBufferHeader = "X-Accel-Buffering"
 
-var scrubRegexp = regexp.MustCompile(`(?i)([\?&]((?:private|authenticity|rss)[\-_]token)|X-AMZ-Signature)=[^&]*`)
+var scrubRegexp = regexp.MustCompile(`(?i)([\?&]((?:private|authenticity|rss)[\-_]token)|(?:X-AMZ-)?Signature)=[^&]*`)
 
 func Fail500(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Internal server error", 500)

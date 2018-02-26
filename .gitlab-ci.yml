@@ -1,3 +1,5 @@
+image: golang:1.8
+
 .test_template: &test_definition
   script:
   - apt update -qq && apt install -y unzip bzip2
@@ -6,7 +8,10 @@
 
 test using go 1.8:
   <<: *test_definition
-  image: golang:1.8
+
+test using go 1.9:
+  image: golang:1.9
+  <<: *test_definition
 
 test:release:
   only:

@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -24,21 +26,21 @@ var nilHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 
 type testFormProcessor struct{}
 
-func (a *testFormProcessor) ProcessFile(formName, fileName string, writer *multipart.Writer) error {
+func (a *testFormProcessor) ProcessFile(ctx context.Context, formName, fileName string, writer *multipart.Writer) error {
 	if formName != "file" && fileName != "my.file" {
 		return errors.New("illegal file")
 	}
 	return nil
 }
 
-func (a *testFormProcessor) ProcessField(formName string, writer *multipart.Writer) error {
+func (a *testFormProcessor) ProcessField(ctx context.Context, formName string, writer *multipart.Writer) error {
 	if formName != "token" {
 		return errors.New("illegal field")
 	}
 	return nil
 }
 
-func (a *testFormProcessor) Finalize() error {
+func (a *testFormProcessor) Finalize(ctx context.Context) error {
 	return nil
 }
 
@@ -113,8 +115,8 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if len(r.MultipartForm.Value) != 3 {
-			t.Fatal("Expected to receive exactly 3 values")
+		if len(r.MultipartForm.Value) != 8 {
+			t.Fatal("Expected to receive exactly 8 values")
 		}
 
 		if len(r.MultipartForm.File) != 0 {
@@ -133,6 +135,23 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 
 		if !strings.HasPrefix(r.FormValue("file.path"), tempPath) {
 			t.Fatal("Expected to the file to be in tempPath")
+		}
+
+		if r.FormValue("file.size") != "4" {
+			t.Fatal("Expected to receive the file size")
+		}
+
+		hashes := map[string]string{
+			"md5":    "098f6bcd4621d373cade4e832627b4f6",
+			"sha1":   "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
+			"sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+			"sha512": "ee26b0dd4af7e749aa1a8ee3c10ae9923f618980772e473f8819a5d4940e0db27ac185f8a0e1d5f84f88bc887fd67b143732c304cc5fa9ad8e6f57f50028a8ff",
+		}
+
+		for algo, hash := range hashes {
+			if r.FormValue("file."+algo) != hash {
+				t.Fatalf("Expected to receive file %s hash", algo)
+			}
 		}
 
 		w.WriteHeader(202)
@@ -155,6 +174,8 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	httpRequest = httpRequest.WithContext(ctx)
 	httpRequest.Body = ioutil.NopCloser(&buffer)
 	httpRequest.ContentLength = int64(buffer.Len())
 	httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
@@ -164,7 +185,18 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 	HandleFileUploads(response, httpRequest, handler, tempPath, &testFormProcessor{})
 	testhelper.AssertResponseCode(t, response, 202)
 
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+	cancel() // this will trigger an async cleanup
+
+	// Poll because the file removal is async
+	for i := 0; i < 100; i++ {
+		_, err = os.Stat(filePath)
+		if err != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if !os.IsNotExist(err) {
 		t.Fatal("expected the file to be deleted")
 	}
 }

@@ -6,15 +6,22 @@ import (
 	"log"
 	"net/http"
 
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
+
+	pb "gitlab.com/gitlab-org/gitaly-proto/go"
+
+	"github.com/golang/protobuf/jsonpb"
 )
 
 type diff struct{ senddata.Prefix }
 type diffParams struct {
-	RepoPath string
-	ShaFrom  string
-	ShaTo    string
+	RepoPath       string
+	ShaFrom        string
+	ShaTo          string
+	GitalyServer   gitaly.Server
+	RawDiffRequest string
 }
 
 var SendDiff = &diff{"git-diff:"}
@@ -26,9 +33,36 @@ func (d *diff) Inject(w http.ResponseWriter, r *http.Request, sendData string) {
 		return
 	}
 
+	if params.GitalyServer.Address != "" {
+		handleSendDiffWithGitaly(w, r, &params)
+	} else {
+		handleSendDiffLocally(w, r, &params)
+	}
+}
+
+func handleSendDiffWithGitaly(w http.ResponseWriter, r *http.Request, params *diffParams) {
+	request := &pb.RawDiffRequest{}
+	if err := jsonpb.UnmarshalString(params.RawDiffRequest, request); err != nil {
+		helper.Fail500(w, r, fmt.Errorf("diff.RawDiff: %v", err))
+	}
+
+	diffClient, err := gitaly.NewDiffClient(params.GitalyServer)
+	if err != nil {
+		helper.Fail500(w, r, fmt.Errorf("diff.RawDiff: %v", err))
+	}
+
+	if err := diffClient.SendRawDiff(r.Context(), w, request); err != nil {
+		helper.LogError(
+			r,
+			&copyError{fmt.Errorf("diff.RawDiff: request=%v, err=%v", request, err)},
+		)
+	}
+}
+
+func handleSendDiffLocally(w http.ResponseWriter, r *http.Request, params *diffParams) {
 	log.Printf("SendDiff: sending diff between %q and %q for %q", params.ShaFrom, params.ShaTo, r.URL.Path)
 
-	gitDiffCmd := gitCommand("", "", "git", "--git-dir="+params.RepoPath, "diff", params.ShaFrom, params.ShaTo)
+	gitDiffCmd := gitCommand("git", "--git-dir="+params.RepoPath, "diff", params.ShaFrom, params.ShaTo)
 	stdout, err := gitDiffCmd.StdoutPipe()
 	if err != nil {
 		helper.Fail500(w, r, fmt.Errorf("SendDiff: create stdout pipe: %v", err))

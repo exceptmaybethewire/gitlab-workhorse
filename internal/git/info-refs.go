@@ -11,6 +11,11 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
+var (
+	// Testing is only set during workhorse testing.
+	Testing = false
+)
+
 func GetInfoRefsHandler(a *api.API) http.Handler {
 	return repoPreAuthorizeHandler(a, handleGetInfoRefs)
 }
@@ -31,8 +36,8 @@ func handleGetInfoRefs(rw http.ResponseWriter, r *http.Request, a *api.Response)
 	w.Header().Set("Cache-Control", "no-cache")
 
 	var err error
-	if a.GitalyServer.Address == "" {
-		err = handleGetInfoRefsLocally(w, a, rpc)
+	if a.GitalyServer.Address == "" && Testing {
+		err = handleGetInfoRefsLocalTesting(w, a, rpc)
 	} else {
 		err = handleGetInfoRefsWithGitaly(r.Context(), w, a, rpc)
 	}
@@ -42,7 +47,10 @@ func handleGetInfoRefs(rw http.ResponseWriter, r *http.Request, a *api.Response)
 	}
 }
 
-func handleGetInfoRefsLocally(w http.ResponseWriter, a *api.Response, rpc string) error {
+// This code is not used in production. It is left over from before
+// Gitaly. We left it here to allow local workhorse tests to keep working
+// until we are done migrating Git HTTP to Gitaly.
+func handleGetInfoRefsLocalTesting(w http.ResponseWriter, a *api.Response, rpc string) error {
 	if err := pktLine(w, fmt.Sprintf("# service=%s\n", rpc)); err != nil {
 		return fmt.Errorf("pktLine: %v", err)
 	}
@@ -69,7 +77,7 @@ func handleGetInfoRefsWithGitaly(ctx context.Context, w http.ResponseWriter, a *
 		return fmt.Errorf("GetInfoRefsHandler: %v", err)
 	}
 
-	infoRefsResponseReader, err := smarthttp.InfoRefsResponseReader(ctx, &a.Repository, rpc)
+	infoRefsResponseReader, err := smarthttp.InfoRefsResponseReader(ctx, &a.Repository, rpc, gitConfigOptions(a))
 	if err != nil {
 		return fmt.Errorf("GetInfoRefsHandler: %v", err)
 	}

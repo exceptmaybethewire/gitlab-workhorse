@@ -130,6 +130,8 @@ func TestScrubURLParams(t *testing.T) {
 		"?X-AMZ-Signature=foo":                                              "?X-AMZ-Signature=[FILTERED]",
 		"&X-AMZ-Signature=foo":                                              "&X-AMZ-Signature=[FILTERED]",
 		"?x-amz-signature=foo":                                              "?x-amz-signature=[FILTERED]",
+		"&Signature=foo":                                                    "&Signature=[FILTERED]",
+		"?Signature=foo":                                                    "?Signature=[FILTERED]",
 	} {
 		after := ScrubURLParams(before)
 		assert.Equal(t, expected, after, "Scrubbing %q", before)

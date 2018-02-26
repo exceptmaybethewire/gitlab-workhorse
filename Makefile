@@ -30,6 +30,7 @@ ${BUILD_DIR}/_build:
 .PHONY: test
 test:	clean-build clean-workhorse all govendor
 	go fmt ${PKG_ALL} | awk '{ print } END { if (NR > 0) { print "Please run go fmt"; exit 1 } }'
+	_support/detect-context.sh
 	cd ${GOPATH}/src/${PKG} && govendor sync
 	go test ${PKG_ALL}
 	@echo SUCCESS

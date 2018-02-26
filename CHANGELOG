@@ -2,6 +2,57 @@
 
 Formerly known as 'gitlab-git-http-server'.
 
+v3.7.0
+
+- Add option to send file uploads straight to object storage !227
+- Allow sending Git archives with file names other than 'archive' !232
+- Unify uploads handling under filestore package !230
+
+v3.6.0
+
+- Introduce a `send-url:` method that allows to serve remote HTTP/GET file, like S3-based file !228
+
+v3.5.1
+
+- Use grpc-go 1.9.1 (!225)
+- Update gitaly stream and dial library functions (!224)
+
+v3.5.0
+
+- Add option to disable Git archive caching !222
+
+v3.4.0
+
+- Track Gitaly Connections in Prometheus !211
+- Run test suite on Go 1.9 !213
+- Remove repo disk check !218
+
+v3.3.1
+
+- Fix "net/http: request canceled" errors in gitlab-zip-cat !208
+
+v3.3.0
+
+- Ban context.Background !201
+- Respect the ShowAllRefs flag in git upload-pack and info-refs !203
+- Upgrade grpc to v1.7.1, protobuf to latest !207
+
+v3.2.0
+
+- Implement Gitaly call for archive requests !199
+- Re-use client.Dial from gitaly !194
+- Respect GL_USERNAME !192
+- Update BurntSushi/toml !195
+- Add Redis error counters !197
+- Migrate Send{Diff,Patch} to Gitaly !200
+
+v3.1.0
+
+- Add histograms to routes !184
+- Gitaly deprecations and replacements !186, !187, !189
+- Enable CI long polling by default !188
+- Refactor Git archive creation !190
+
 v3.0.0
 
 - Use GetBlob RPC instead of TreeEntry RPC for serving blobs !182

@@ -7,11 +7,8 @@ package git
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -20,12 +17,28 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
+const (
+	// We have to use a negative transfer.hideRefs since this is the only way
+	// to undo an already set parameter: https://www.spinics.net/lists/git/msg256772.html
+	GitConfigShowAllRefs = "transfer.hideRefs=!refs"
+)
+
 func ReceivePack(a *api.API) http.Handler {
 	return postRPCHandler(a, "handleReceivePack", handleReceivePack)
 }
 
 func UploadPack(a *api.API) http.Handler {
 	return postRPCHandler(a, "handleUploadPack", handleUploadPack)
+}
+
+func gitConfigOptions(a *api.Response) []string {
+	var out []string
+
+	if a.ShowAllRefs {
+		out = append(out, GitConfigShowAllRefs)
+	}
+
+	return out
 }
 
 func postRPCHandler(a *api.API, name string, handler func(*GitHttpResponseWriter, *http.Request, *api.Response) error) http.Handler {
@@ -48,25 +61,10 @@ func postRPCHandler(a *api.API, name string, handler func(*GitHttpResponseWriter
 	})
 }
 
-func looksLikeRepo(p string) bool {
-	// If /path/to/foo.git/objects exists then let's assume it is a valid Git
-	// repository.
-	if _, err := os.Stat(path.Join(p, "objects")); err != nil {
-		log.Print(err)
-		return false
-	}
-	return true
-}
-
 func repoPreAuthorizeHandler(myAPI *api.API, handleFunc api.HandleFunc) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
 		if a.RepoPath == "" {
 			helper.Fail500(w, r, fmt.Errorf("repoPreAuthorizeHandler: RepoPath empty"))
-			return
-		}
-
-		if !looksLikeRepo(a.RepoPath) {
-			http.Error(w, "Not Found", 404)
 			return
 		}
 
@@ -79,7 +77,7 @@ func startGitCommand(a *api.Response, stdin io.Reader, stdout io.Writer, action 
 	args := []string{subCommand(action), "--stateless-rpc"}
 	args = append(args, options...)
 	args = append(args, a.RepoPath)
-	cmd = gitCommand(a.GL_ID, a.GL_REPOSITORY, "git", args...)
+	cmd = gitCommandApi(a, "git", args...)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 

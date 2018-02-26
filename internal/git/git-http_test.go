@@ -40,6 +40,11 @@ func TestHandleReceivePack(t *testing.T) {
 }
 
 func testHandlePostRpc(t *testing.T, action string, handler func(*GitHttpResponseWriter, *http.Request, *api.Response) error) {
+	defer func(oldTesting bool) {
+		Testing = oldTesting
+	}(Testing)
+	Testing = true
+
 	execCommand = fakeExecCommand
 	defer func() { execCommand = exec.Command }()
 
