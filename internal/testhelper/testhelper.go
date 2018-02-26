@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/secret"
 )

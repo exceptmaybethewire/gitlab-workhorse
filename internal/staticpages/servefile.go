@@ -1,12 +1,13 @@
 package staticpages
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/urlprefix"
@@ -70,7 +71,12 @@ func (s *Static) ServeExisting(prefix urlprefix.Prefix, cache CacheMode, notFoun
 			w.Header().Set("Expires", cacheUntil)
 		}
 
-		log.Printf("Send static file %q (%q) for %s %q", file, w.Header().Get("Content-Encoding"), r.Method, helper.ScrubURLParams(r.RequestURI))
+		log.WithFields(log.Fields{
+			"file":     file,
+			"encoding": w.Header().Get("Content-Encoding"),
+			"method":   r.Method,
+			"uri":      helper.ScrubURLParams(r.RequestURI),
+		}).Printf("Send static file")
 		http.ServeContent(w, r, filepath.Base(file), fi.ModTime(), content)
 	})
 }

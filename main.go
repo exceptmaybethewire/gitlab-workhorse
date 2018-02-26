@@ -16,13 +16,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/queueing"
@@ -83,10 +84,10 @@ func main() {
 
 	backendURL, err := parseAuthBackend(*authBackend)
 	if err != nil {
-		log.Fatalf("invalid authBackend: %v", err)
+		log.WithError(err).Fatal("invalid authBackend")
 	}
 
-	log.Printf("Starting %s", version)
+	log.WithField("version", version).Print("Starting")
 
 	// Good housekeeping for Unix sockets: unlink before binding
 	if *listenNetwork == "unix" {
@@ -138,7 +139,7 @@ func main() {
 	if *configFile != "" {
 		cfgFromFile, err := config.LoadConfig(*configFile)
 		if err != nil {
-			log.Fatalf("Can not load config file %q: %v", *configFile, err)
+			log.WithField("configFile", *configFile).WithError(err).Fatal("Can not load config file")
 		}
 
 		cfg.Redis = cfgFromFile.Redis

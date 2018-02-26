@@ -51,7 +51,7 @@ func printError(r *http.Request, err error) {
 			"uri":    r.RequestURI,
 		}).Printf("error: %s %q: %v", r.Method, r.RequestURI, err)
 	} else {
-		log.Printf("error: %v", err)
+		log.WithError(err).Print("error")
 	}
 }
 
@@ -94,7 +94,7 @@ func OpenFile(path string) (file *os.File, fi os.FileInfo, err error) {
 func URLMustParse(s string) *url.URL {
 	u, err := url.Parse(s)
 	if err != nil {
-		log.Fatalf("urlMustParse: %q %v", s, err)
+		log.WithField("url", s).WithError(err).Fatal("urlMustParse")
 	}
 	return u
 }

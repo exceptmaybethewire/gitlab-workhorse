@@ -3,10 +3,11 @@ package sendurl
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -97,7 +98,10 @@ func (e *entry) Inject(w http.ResponseWriter, r *http.Request, sendData string) 
 		return
 	}
 
-	log.Printf("SendURL: sending %q for %q", helper.ScrubURLParams(params.URL), r.URL.Path)
+	log.WithFields(log.Fields{
+		"url":  helper.ScrubURLParams(params.URL),
+		"path": r.URL.Path,
+	}).Print("SendURL: sending")
 
 	if params.URL == "" {
 		sendURLRequestsInvalidData.Inc()

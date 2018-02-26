@@ -13,7 +13,7 @@ import (
 
 func reopenLogWriter(l reopen.WriteCloser, sighup chan os.Signal) {
 	for _ = range sighup {
-		log.Printf("Reopening log file")
+		log.Print("Reopening log file")
 		l.Reopen()
 	}
 }
@@ -21,7 +21,7 @@ func reopenLogWriter(l reopen.WriteCloser, sighup chan os.Signal) {
 func prepareLoggingFile(logFile string) *reopen.FileWriter {
 	file, err := reopen.NewFileWriter(logFile)
 	if err != nil {
-		log.Fatalf("Unable to set output log: %s", err)
+		goLog.Fatalf("Unable to set output log: %s", err)
 	}
 
 	sighup := make(chan os.Signal, 1)

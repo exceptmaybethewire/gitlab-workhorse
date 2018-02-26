@@ -3,8 +3,9 @@ package git
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -60,7 +61,11 @@ func handleSendDiffWithGitaly(w http.ResponseWriter, r *http.Request, params *di
 }
 
 func handleSendDiffLocally(w http.ResponseWriter, r *http.Request, params *diffParams) {
-	log.Printf("SendDiff: sending diff between %q and %q for %q", params.ShaFrom, params.ShaTo, r.URL.Path)
+	log.WithFields(log.Fields{
+		"shaFrom": params.ShaFrom,
+		"shaTo":   params.ShaTo,
+		"path":    r.URL.Path,
+	}).Print("SendDiff: sending diff")
 
 	gitDiffCmd := gitCommand("git", "--git-dir="+params.RepoPath, "diff", params.ShaFrom, params.ShaTo)
 	stdout, err := gitDiffCmd.StdoutPipe()

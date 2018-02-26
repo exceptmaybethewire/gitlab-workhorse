@@ -3,9 +3,10 @@ package terminal
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/websocket"
 
@@ -46,7 +47,7 @@ func ProxyTerminal(w http.ResponseWriter, r *http.Request, terminal *api.Termina
 	server, err := connectToServer(terminal, r)
 	if err != nil {
 		helper.Fail500(w, r, err)
-		log.Printf("Terminal: connecting to server failed: %s", err)
+		log.WithError(err).Print("Terminal: connecting to server failed")
 		return
 	}
 	defer server.UnderlyingConn().Close()
@@ -54,7 +55,7 @@ func ProxyTerminal(w http.ResponseWriter, r *http.Request, terminal *api.Termina
 
 	client, err := upgradeClient(w, r)
 	if err != nil {
-		log.Printf("Terminal: upgrading client to websocket failed: %s", err)
+		log.WithError(err).Print("Terminal: upgrading client to websocket failed")
 		return
 	}
 
@@ -65,11 +66,17 @@ func ProxyTerminal(w http.ResponseWriter, r *http.Request, terminal *api.Termina
 	defer client.UnderlyingConn().Close()
 	clientAddr := getClientAddr(r) // We can't know the port with confidence
 
-	log.Printf("Terminal: started proxying from %s to %s", clientAddr, serverAddr)
-	defer log.Printf("Terminal: finished proxying from %s to %s", clientAddr, serverAddr)
+	logEntry := log.WithFields(log.Fields{
+		"clientAddr": clientAddr,
+		"serverAddr": serverAddr,
+	})
+
+	logEntry.Print("Terminal: started proxying")
+
+	defer logEntry.Print("Terminal: finished proxying")
 
 	if err := proxy.Serve(server, client, serverAddr, clientAddr); err != nil {
-		log.Printf("Terminal: error proxying from %s to %s: %s", clientAddr, serverAddr, err)
+		logEntry.WithError(err).Print("Terminal: error proxying")
 	}
 }
 

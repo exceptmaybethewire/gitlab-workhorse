@@ -112,15 +112,15 @@ func (l *statsCollectingResponseWriter) writeAccessLog(r *http.Request) {
 	duration := time.Since(l.started)
 	log.WithFields(log.Fields{
 		"method":       r.Method,
-		"uri":          r.RequestURI,
+		"uri":          ScrubURLParams(r.RequestURI),
 		"proto":        r.Proto,
 		"status":       l.status,
 		"started":      l.started,
 		"bytesWritten": l.written,
-		"referer":      r.Referer(),
+		"referer":      ScrubURLParams(r.Referer()),
 		"ua":           r.UserAgent(),
 		"requestTime":  duration.Seconds(),
-	}).Info(r.Method, r.RequestURI, r.Proto)
+	}).Info("access")
 
 	accessLogWriter.Printf("%s %s - - [%s] %q %d %d %q %q %f\n",
 		r.Host, r.RemoteAddr, l.started,

@@ -7,9 +7,10 @@ via the X-Sendfile mechanism. All that is needed in the Rails code is the
 package sendfile
 
 import (
-	"log"
 	"net/http"
 	"regexp"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -104,7 +105,12 @@ func (s *sendFileResponseWriter) WriteHeader(status int) {
 }
 
 func sendFileFromDisk(w http.ResponseWriter, r *http.Request, file string) {
-	log.Printf("Send file %q for %s %q", file, r.Method, helper.ScrubURLParams(r.RequestURI))
+	log.WithFields(log.Fields{
+		"file":   file,
+		"method": r.Method,
+		"uri":    helper.ScrubURLParams(r.RequestURI),
+	}).Print("Send file")
+
 	content, fi, err := helper.OpenFile(file)
 	if err != nil {
 		http.NotFound(w, r)
