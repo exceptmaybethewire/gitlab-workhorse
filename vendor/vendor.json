@@ -177,6 +177,14 @@
 			"revisionTime": "2017-01-16T09:20:13Z"
 		},
 		{
+			"checksumSHA1": "ySaT8G3I3y4MmnoXOYAAX0rC+p8=",
+			"path": "github.com/sirupsen/logrus",
+			"revision": "d682213848ed68c0a260ca37d6dd5ace8423f5ba",
+			"revisionTime": "2017-12-05T20:32:29Z",
+			"version": "=v1.0.4",
+			"versionExact": "v1.0.4"
+		},
+		{
 			"checksumSHA1": "hIEmcd7hIDqO/xWSp1rJJHd0TpE=",
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "18a02ba4a312f95da08ff4cfc0055750ce50ae9e",

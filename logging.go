@@ -6,9 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
-	logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	"github.com/client9/reopen"
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
@@ -33,10 +32,9 @@ func prepareLoggingFile(logFile string) *reopen.FileWriter {
 }
 
 const (
-	jsonLogFormat   = "json"
-	textLogFormat   = "text"
-	noneLogType     = "none"
-	logstashLogType = "logstash"
+	jsonLogFormat = "json"
+	textLogFormat = "text"
+	noneLogType   = "none"
 )
 
 type logConfiguration struct {
@@ -66,8 +64,6 @@ func startLogging(config logConfiguration) {
 		log.SetFormatter(&log.JSONFormatter{})
 	case textLogFormat:
 		log.SetFormatter(&log.TextFormatter{})
-	case logstashLogType:
-		log.SetFormatter(&logstash.LogstashFormatter{})
 	default:
 		log.WithField("logFormat", config.logFormat).Error("Unknown logFormat configured")
 	}
