@@ -54,8 +54,8 @@ func (u *Upstream) configureURLPrefix() {
 }
 
 func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
-	w := helper.NewLoggingResponseWriter(ow)
-	defer w.Log(r)
+	w := helper.NewStatsCollectingResponseWriter(ow)
+	defer w.RequestFinished(r)
 
 	helper.DisableResponseBuffering(w)
 

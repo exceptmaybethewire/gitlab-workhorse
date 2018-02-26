@@ -3,8 +3,9 @@ package git
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -59,7 +60,11 @@ func handleSendPatchWithGitaly(w http.ResponseWriter, r *http.Request, params *p
 }
 
 func handleSendPatchLocally(w http.ResponseWriter, r *http.Request, params *patchParams) {
-	log.Printf("SendPatch: sending patch between %q and %q for %q", params.ShaFrom, params.ShaTo, r.URL.Path)
+	log.WithFields(log.Fields{
+		"shaFrom": params.ShaFrom,
+		"shaTo":   params.ShaTo,
+		"path":    r.URL.Path,
+	}).Print("SendPatch: sending patch")
 
 	gitRange := fmt.Sprintf("%s..%s", params.ShaFrom, params.ShaTo)
 	gitPatchCmd := gitCommand("git", "--git-dir="+params.RepoPath, "format-patch", gitRange, "--stdout")

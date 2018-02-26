@@ -16,13 +16,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/queueing"
@@ -52,8 +53,18 @@ var apiLimit = flag.Uint("apiLimit", 0, "Number of API requests allowed at singl
 var apiQueueLimit = flag.Uint("apiQueueLimit", 0, "Number of API requests allowed to be queued")
 var apiQueueTimeout = flag.Duration("apiQueueDuration", queueing.DefaultTimeout, "Maximum queueing duration of requests")
 var apiCiLongPollingDuration = flag.Duration("apiCiLongPollingDuration", 50, "Long polling duration for job requesting for runners (default 50s - enabled)")
-var logFile = flag.String("logFile", "", "Log file to be used")
+
 var prometheusListenAddr = flag.String("prometheusListenAddr", "", "Prometheus listening address, e.g. 'localhost:9229'")
+
+var logConfig = logConfiguration{}
+
+func init() {
+	flag.BoolVar(&logConfig.accessLogEnabled, "enableAccessLog", false, "Enable Access Log")
+	flag.StringVar(&logConfig.accessLogFile, "accessLogFile", "", "File to be used for Access Log")
+
+	flag.StringVar(&logConfig.logFile, "logFile", "", "Log file location")
+	flag.StringVar(&logConfig.logFormat, "logFormat", "text", "Log format to use defaults to text (text, json, logstash, none)")
+}
 
 func main() {
 	flag.Usage = func() {
@@ -69,14 +80,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	startLogging(*logFile)
+	startLogging(logConfig)
 
 	backendURL, err := parseAuthBackend(*authBackend)
 	if err != nil {
-		log.Fatalf("invalid authBackend: %v", err)
+		log.WithError(err).Fatal("invalid authBackend")
 	}
 
-	log.Printf("Starting %s", version)
+	log.WithField("version", version).Print("Starting")
 
 	// Good housekeeping for Unix sockets: unlink before binding
 	if *listenNetwork == "unix" {
@@ -128,7 +139,7 @@ func main() {
 	if *configFile != "" {
 		cfgFromFile, err := config.LoadConfig(*configFile)
 		if err != nil {
-			log.Fatalf("Can not load config file %q: %v", *configFile, err)
+			log.WithField("configFile", *configFile).WithError(err).Fatal("Can not load config file")
 		}
 
 		cfg.Redis = cfgFromFile.Redis

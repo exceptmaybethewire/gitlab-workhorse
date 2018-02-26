@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
@@ -31,7 +32,11 @@ func (e *entry) Inject(w http.ResponseWriter, r *http.Request, sendData string) 
 		return
 	}
 
-	log.Printf("SendEntry: sending %q from %q for %q", params.Entry, params.Archive, r.URL.Path)
+	log.WithFields(log.Fields{
+		"entry":   params.Entry,
+		"archive": params.Archive,
+		"path":    r.URL.Path,
+	}).Print("SendEntry: sending")
 
 	if params.Archive == "" || params.Entry == "" {
 		helper.Fail500(w, r, fmt.Errorf("SendEntry: Archive or Entry is empty"))

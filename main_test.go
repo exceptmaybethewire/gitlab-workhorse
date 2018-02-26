@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
@@ -52,14 +53,14 @@ func TestMain(m *testing.M) {
 		testCmd.Stderr = os.Stderr
 
 		if err := testCmd.Run(); err != nil {
-			log.Printf("Test setup: failed to run %v", testCmd)
+			log.WithField("testCmd", testCmd).Print("Test setup: failed to run")
 			os.Exit(-1)
 		}
 	}
 
 	cleanup, err := testhelper.BuildExecutables()
 	if err != nil {
-		log.Printf("Test setup: failed to build executables: %v", err)
+		log.WithError(err).Print("Test setup: failed to build executables")
 		os.Exit(1)
 	}
 
@@ -576,10 +577,8 @@ func TestQueryStringLogFiltering(t *testing.T) {
 	// capture the log output
 	buf := bytes.NewBuffer(nil)
 	log.SetOutput(buf)
-	helper.SetCustomResponseLogger(buf)
 
 	defer log.SetOutput(os.Stderr)
-	defer helper.SetCustomResponseLogger(os.Stderr)
 
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`.`), func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)

@@ -3,10 +3,11 @@ package redis
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 
@@ -74,7 +75,9 @@ func sentinelConn(master string, urls []config.TomlURL) *sentinel.Sentinel {
 	var addrs []string
 	for _, url := range urls {
 		h := url.URL.Host
-		log.Printf("redis: using sentinel %q", h)
+		log.WithFields(log.Fields{
+			"host": h,
+		}).Printf("redis: using sentinel")
 		addrs = append(addrs, h)
 	}
 	return &sentinel.Sentinel{
@@ -180,7 +183,11 @@ func defaultDialer(dopts []redis.DialOption, keepAlivePeriod time.Duration, url 
 }
 
 func redisDial(network, address string, options ...redis.DialOption) (redis.Conn, error) {
-	log.Printf("redis: dialing %q, %q", network, address)
+	log.WithFields(log.Fields{
+		"network": network,
+		"address": address,
+	}).Printf("redis: dialing")
+
 	return redis.Dial(network, address, options...)
 }
 

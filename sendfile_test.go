@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func TestDeniedLfsDownload(t *testing.T) {

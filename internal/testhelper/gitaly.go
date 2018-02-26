@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"path"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 

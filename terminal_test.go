@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/websocket"
 
@@ -67,7 +68,7 @@ func TestTerminalBadTLS(t *testing.T) {
 		t.Fatalf("Expected connection to fail ErrBadHandshake, got: %v", err)
 	}
 	if err == nil {
-		log.Println("TLS negotiation should have failed!")
+		log.Info("TLS negotiation should have failed!")
 		defer client.Close()
 	}
 }

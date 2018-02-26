@@ -3,9 +3,10 @@ package git
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -50,7 +51,10 @@ func handleSendBlobWithGitaly(w http.ResponseWriter, r *http.Request, params *bl
 }
 
 func handleSendBlobLocally(w http.ResponseWriter, r *http.Request, params *blobParams) {
-	log.Printf("SendBlob: sending %q for %q", params.BlobId, r.URL.Path)
+	log.WithFields(log.Fields{
+		"blobId": params.BlobId,
+		"path":   r.URL.Path,
+	}).Print("SendBlob: sending")
 
 	sizeOutput, err := gitCommand("git", "--git-dir="+params.RepoPath, "cat-file", "-s", params.BlobId).Output()
 	if err != nil {

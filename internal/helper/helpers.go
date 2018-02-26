@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io/ioutil"
-	"log"
 	"mime"
 	"net"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const NginxResponseBufferHeader = "X-Accel-Buffering"
@@ -45,9 +46,12 @@ func RequestEntityTooLarge(w http.ResponseWriter, r *http.Request, err error) {
 
 func printError(r *http.Request, err error) {
 	if r != nil {
-		log.Printf("error: %s %q: %v", r.Method, ScrubURLParams(r.RequestURI), err)
+		log.WithFields(log.Fields{
+			"method": r.Method,
+			"uri":    r.RequestURI,
+		}).Printf("error: %s %q: %v", r.Method, r.RequestURI, err)
 	} else {
-		log.Printf("error: %v", err)
+		log.WithError(err).Print("error")
 	}
 }
 
@@ -90,7 +94,7 @@ func OpenFile(path string) (file *os.File, fi os.FileInfo, err error) {
 func URLMustParse(s string) *url.URL {
 	u, err := url.Parse(s)
 	if err != nil {
-		log.Fatalf("urlMustParse: %q %v", s, err)
+		log.WithField("url", s).WithError(err).Fatal("urlMustParse")
 	}
 	return u
 }
