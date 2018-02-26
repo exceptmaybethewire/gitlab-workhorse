@@ -7,5 +7,3 @@ testdata/public
 /_build
 # Avoid distributing redigomock because it is GPLv2
 /vendor/github.com/rafaeljusto/redigomock
-bin
-pkg
