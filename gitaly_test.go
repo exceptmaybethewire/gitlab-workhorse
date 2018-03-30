@@ -77,7 +77,7 @@ func TestGetInfoRefsProxiedToGitalySuccessfully(t *testing.T) {
 
 			expectedContent := "\n\000" + string(testhelper.GitalyInfoRefsResponseMock) + "\000"
 			if showAllRefs {
-				expectedContent = git.GitConfigShowAllRefs + expectedContent
+				expectedContent = strings.Join(strings.Split(git.GitConfigShowAllRefs, " "), "\n") + expectedContent
 			}
 
 			assert.Equal(t, expectedContent, body, "GET %q: response body", resource)
@@ -232,7 +232,7 @@ func TestPostUploadPackProxiedToGitalySuccessfully(t *testing.T) {
 				apiResponse.Repository.RelativePath,
 			}
 			if tc.showAllRefs {
-				expectedBodyParts = append(expectedBodyParts, git.GitConfigShowAllRefs+"\n")
+				expectedBodyParts = append(expectedBodyParts, strings.Join(strings.Split(git.GitConfigShowAllRefs, " "), "\n")+"\n")
 			} else {
 				expectedBodyParts = append(expectedBodyParts, "\n")
 			}

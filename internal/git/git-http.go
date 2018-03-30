@@ -20,7 +20,8 @@ import (
 const (
 	// We have to use a negative transfer.hideRefs since this is the only way
 	// to undo an already set parameter: https://www.spinics.net/lists/git/msg256772.html
-	GitConfigShowAllRefs = "transfer.hideRefs=!refs"
+	// Then we include again what we want to filter out.
+	GitConfigShowAllRefs = "transfer.hideRefs=!refs transfer.hideRefs=refs/tmp transfer.hideRefs=refs/remotes"
 )
 
 func ReceivePack(a *api.API) http.Handler {
@@ -35,7 +36,7 @@ func gitConfigOptions(a *api.Response) []string {
 	var out []string
 
 	if a.ShowAllRefs {
-		out = append(out, GitConfigShowAllRefs)
+		out = append(out, strings.Split(GitConfigShowAllRefs, " ")...)
 	}
 
 	return out
