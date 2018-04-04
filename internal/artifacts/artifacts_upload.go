@@ -55,6 +55,9 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	go func() {
 		var result saveResult
 		result.FileHandler, result.error = filestore.SaveFileFromReader(ctx, metaReader, -1, metaOpts)
+		if result.error != nil {
+			metaReader.Close()
+		}
 
 		done <- result
 	}()
@@ -62,6 +65,14 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	if err := zipMd.Wait(); err != nil {
 		if st, ok := helper.ExitStatus(err); ok && st == zipartifacts.StatusNotZip {
 			return nil, nil
+		}
+
+		select {
+		case result := <-done:
+			if result.error != nil {
+				return nil, result.error
+			}
+		default: // no-op
 		}
 		return nil, err
 	}
