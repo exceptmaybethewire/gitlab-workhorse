@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore/test"
 )
 
@@ -79,8 +78,11 @@ func TestSaveFromDiskNotExistingFile(t *testing.T) {
 func TestSaveFileWrongMD5(t *testing.T) {
 	assert := assert.New(t)
 
-	osStub, ts := test.StartObjectStoreWithCustomMD5(map[string]string{test.ObjectPath: "brokenMD5"})
-	defer ts.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	osStub, ts, err := test.StartObjectStoreWithCustomMD5(ctx, map[string]string{test.ObjectPath: "brokenMD5"})
+	require.NoError(t, err)
 
 	objectURL := ts.URL + test.ObjectPath
 
@@ -91,15 +93,15 @@ func TestSaveFileWrongMD5(t *testing.T) {
 		PresignedDelete: objectURL + "?Signature=AnotherSignature",
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	fh, err := filestore.SaveFileFromReader(ctx, strings.NewReader(test.ObjectContent), test.ObjectSize, opts)
+	ctxRequest, cancelRequest := context.WithCancel(ctx)
+	fh, err := filestore.SaveFileFromReader(ctxRequest, strings.NewReader(test.ObjectContent), test.ObjectSize, opts)
 	assert.Nil(fh)
 	assert.Error(err)
 	_, isMD5Error := err.(filestore.MD5Error)
 	assert.True(isMD5Error, "Should fail with MD5Error")
 	assert.Equal(1, osStub.PutsCnt(), "File not uploaded")
 
-	cancel() // this will trigger an async cleanup
+	cancelRequest() // this will trigger an async cleanup
 	assertObjectStoreDeletedAsync(t, 1, osStub)
 }
 
@@ -153,8 +155,11 @@ func TestSaveFile(t *testing.T) {
 			var opts filestore.SaveFileOpts
 			var expectedDeletes, expectedPuts int
 
-			osStub, ts := test.StartObjectStore()
-			defer ts.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			osStub, ts, err := test.StartObjectStore(ctx)
+			require.NoError(t, err)
 
 			if spec.remote {
 				objectURL := ts.URL + test.ObjectPath
@@ -173,10 +178,10 @@ func TestSaveFile(t *testing.T) {
 				opts.TempFilePrefix = "test-file"
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctxRequest, cancelRequest := context.WithCancel(ctx)
+			defer cancelRequest()
 
-			fh, err := filestore.SaveFileFromReader(ctx, strings.NewReader(test.ObjectContent), test.ObjectSize, &opts)
+			fh, err := filestore.SaveFileFromReader(ctxRequest, strings.NewReader(test.ObjectContent), test.ObjectSize, &opts)
 			assert.NoError(err)
 			require.NotNil(t, fh)
 
@@ -204,7 +209,7 @@ func TestSaveFile(t *testing.T) {
 			assert.Equal(expectedPuts, osStub.PutsCnt(), "ObjectStore PutObject count mismatch")
 			assert.Equal(0, osStub.DeletesCnt(), "File deleted too early")
 
-			cancel() // this will trigger an async cleanup
+			cancelRequest() // this will trigger an async cleanup
 			assertObjectStoreDeletedAsync(t, expectedDeletes, osStub)
 			assertFileGetsRemovedAsync(t, fh.LocalPath)
 

@@ -1,22 +1,27 @@
 package test
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"sync"
 )
 
 // ObjectstoreStub is a testing implementation of ObjectStore.
-// Instead of storing objects it will just save md5sum.
 type ObjectstoreStub struct {
 	// bucket contains md5sum of uploaded objects
 	bucket map[string]string
 	// overwriteMD5 contains overwrites for md5sum that should be return instead of the regular hash
 	overwriteMD5 map[string]string
+	// storage is the folder containing uploaded files
+	storage string
 
 	puts    int
 	deletes int
@@ -25,22 +30,36 @@ type ObjectstoreStub struct {
 }
 
 // StartObjectStore will start an ObjectStore stub
-func StartObjectStore() (*ObjectstoreStub, *httptest.Server) {
-	return StartObjectStoreWithCustomMD5(make(map[string]string))
+func StartObjectStore(ctx context.Context) (*ObjectstoreStub, *httptest.Server, error) {
+	return StartObjectStoreWithCustomMD5(ctx, make(map[string]string))
 }
 
 // StartObjectStoreWithCustomMD5 will start an ObjectStore stub: md5Hashes contains overwrites for md5sum that should be return on PutObject
-func StartObjectStoreWithCustomMD5(md5Hashes map[string]string) (*ObjectstoreStub, *httptest.Server) {
-	os := &ObjectstoreStub{
+func StartObjectStoreWithCustomMD5(ctx context.Context, md5Hashes map[string]string) (*ObjectstoreStub, *httptest.Server, error) {
+	dir, err := ioutil.TempDir("", "objectstore")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	o := &ObjectstoreStub{
 		bucket:       make(map[string]string),
 		overwriteMD5: make(map[string]string),
+		storage:      dir,
 	}
 
 	for k, v := range md5Hashes {
-		os.overwriteMD5[k] = v
+		o.overwriteMD5[k] = v
 	}
 
-	return os, httptest.NewServer(os)
+	server := httptest.NewServer(o)
+
+	go func() {
+		<-ctx.Done()
+		server.Close()
+		os.RemoveAll(dir)
+	}()
+
+	return o, server, nil
 }
 
 // PutsCnt counts PutObject invocations
@@ -76,6 +95,7 @@ func (o *ObjectstoreStub) removeObject(w http.ResponseWriter, r *http.Request) {
 	if _, ok := o.bucket[objectPath]; ok {
 		o.deletes++
 		delete(o.bucket, objectPath)
+		os.Remove(path.Join(o.storage, objectPath))
 
 		w.WriteHeader(200)
 	} else {
@@ -89,11 +109,35 @@ func (o *ObjectstoreStub) putObject(w http.ResponseWriter, r *http.Request) {
 
 	objectPath := r.URL.Path
 
+	storagePath := path.Join(o.storage, objectPath)
+	dir := path.Dir(storagePath)
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	file, err := os.Create(storagePath)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer file.Close()
+
+	hasher := md5.New()
+
+	writers := io.MultiWriter(file, hasher)
+	_, err = io.Copy(writers, r.Body)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
 	etag, overwritten := o.overwriteMD5[objectPath]
 	if !overwritten {
-		hasher := md5.New()
-		io.Copy(hasher, r.Body)
-
 		checksum := hasher.Sum(nil)
 		etag = hex.EncodeToString(checksum)
 	}
@@ -103,6 +147,22 @@ func (o *ObjectstoreStub) putObject(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(200)
+}
+
+func (o *ObjectstoreStub) getObject(w http.ResponseWriter, r *http.Request) {
+	o.m.Lock()
+	defer o.m.Unlock()
+
+	objectPath := r.URL.Path
+
+	etag := o.bucket[objectPath]
+	if etag == "" {
+		w.WriteHeader(404)
+		return
+	}
+
+	w.Header().Set("ETag", etag)
+	http.ServeFile(w, r, path.Join(o.storage, objectPath))
 }
 
 func (o *ObjectstoreStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +177,8 @@ func (o *ObjectstoreStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		o.removeObject(w, r)
 	case "PUT":
 		o.putObject(w, r)
+	case "GET":
+		o.getObject(w, r)
 	default:
 		w.WriteHeader(404)
 	}

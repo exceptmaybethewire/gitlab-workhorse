@@ -16,6 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
@@ -51,24 +54,19 @@ func (a *testFormProcessor) Name() string {
 func TestUploadTempPathRequirement(t *testing.T) {
 	response := httptest.NewRecorder()
 	request, err := http.NewRequest("", "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	HandleFileUploads(response, request, nilHandler, &api.Response{}, nil)
 	testhelper.AssertResponseCode(t, response, 500)
 }
 
 func TestUploadHandlerForwardingRawData(t *testing.T) {
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`/url/path\z`), func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PATCH" {
-			t.Fatal("Expected PATCH request")
-		}
+		require.Equal(t, "PATCH", r.Method, "Expected PATCH request")
 
 		var body bytes.Buffer
 		io.Copy(&body, r.Body)
-		if body.String() != "REQUEST" {
-			t.Fatal("Expected REQUEST in request body")
-		}
+		require.Equal(t, "REQUEST", body.String(), "Expected REQUEST in request body")
 
 		w.WriteHeader(202)
 		fmt.Fprint(w, "RESPONSE")
@@ -76,14 +74,10 @@ func TestUploadHandlerForwardingRawData(t *testing.T) {
 	defer ts.Close()
 
 	httpRequest, err := http.NewRequest("PATCH", ts.URL+"/url/path", bytes.NewBufferString("REQUEST"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
 	response := httptest.NewRecorder()
@@ -91,50 +85,31 @@ func TestUploadHandlerForwardingRawData(t *testing.T) {
 	handler := newProxy(ts.URL)
 	HandleFileUploads(response, httpRequest, handler, &api.Response{TempPath: tempPath}, nil)
 	testhelper.AssertResponseCode(t, response, 202)
-	if response.Body.String() != "RESPONSE" {
-		t.Fatal("Expected RESPONSE in response body")
-	}
+	assert.Equal(t, "RESPONSE", response.Body.String(), "Expected RESPONSE in response body")
 }
 
 func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 	var filePath string
 
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
 	ts := testhelper.TestServerWithHandler(regexp.MustCompile(`/url/path\z`), func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Fatal("Expected PUT request")
-		}
+		require.Equal(t, "PUT", r.Method, "Expected PUT request")
 
 		err := r.ParseMultipartForm(100000)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if len(r.MultipartForm.File) != 0 {
-			t.Error("Expected to not receive any files")
-		}
+		assert.Empty(t, r.MultipartForm.File, "No file expected")
 
-		if r.FormValue("token") != "test" {
-			t.Error("Expected to receive token")
-		}
-
-		if r.FormValue("file.name") != "my.file" {
-			t.Error("Expected to receive a filename")
-		}
+		assert.Equal(t, "test", r.FormValue("token"), "Expected to receive a token")
+		assert.Equal(t, "my.file", r.FormValue("file.name"), "Expected to receive a filename")
 
 		filePath = r.FormValue("file.path")
-		if !strings.HasPrefix(filePath, tempPath) {
-			t.Error("Expected to the file to be in tempPath")
-		}
+		assert.True(t, strings.HasPrefix(filePath, tempPath), "Expected to the file to be in tempPath")
 
-		if r.FormValue("file.size") != "4" {
-			t.Error("Expected to receive the file size")
-		}
+		assert.Equal(t, "4", r.FormValue("file.size"), "Expected to receive the file size")
 
 		hashes := map[string]string{
 			"md5":    "098f6bcd4621d373cade4e832627b4f6",
@@ -144,14 +119,10 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 		}
 
 		for algo, hash := range hashes {
-			if r.FormValue("file."+algo) != hash {
-				t.Errorf("Expected to receive file %s hash", algo)
-			}
+			assert.Equal(t, hash, r.FormValue("file."+algo), fmt.Sprintf("Wrong %s hash", algo))
 		}
 
-		if valueCnt := len(r.MultipartForm.Value); valueCnt != 8 {
-			t.Fatal("Expected to receive exactly 8 values but got", valueCnt)
-		}
+		assert.Len(t, r.MultipartForm.Value, 8, "Wrong number of MultipartForm values")
 
 		w.WriteHeader(202)
 		fmt.Fprint(w, "RESPONSE")
@@ -162,16 +133,12 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 	writer := multipart.NewWriter(&buffer)
 	writer.WriteField("token", "test")
 	file, err := writer.CreateFormFile("file", "my.file")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	fmt.Fprint(file, "test")
 	writer.Close()
 
 	httpRequest, err := http.NewRequest("PUT", ts.URL+"/url/path", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	httpRequest = httpRequest.WithContext(ctx)
@@ -195,16 +162,12 @@ func TestUploadHandlerRewritingMultiPartData(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	if !os.IsNotExist(err) {
-		t.Fatal("expected the file to be deleted")
-	}
+	assert.True(t, os.IsNotExist(err), "expected the file to be deleted")
 }
 
 func TestUploadProcessingField(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
 	var buffer bytes.Buffer
@@ -214,9 +177,7 @@ func TestUploadProcessingField(t *testing.T) {
 	writer.Close()
 
 	httpRequest, err := http.NewRequest("PUT", "/url/path", &buffer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
 
 	response := httptest.NewRecorder()
@@ -226,13 +187,14 @@ func TestUploadProcessingField(t *testing.T) {
 
 func TestUploadProcessingFile(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
-	_, testServer := test.StartObjectStore()
-	defer testServer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, testServer, err := test.StartObjectStore(ctx)
+	require.NoError(t, err)
 
 	storeUrl := testServer.URL + test.ObjectPath
 
@@ -269,9 +231,8 @@ func TestUploadProcessingFile(t *testing.T) {
 			writer.Close()
 
 			httpRequest, err := http.NewRequest("PUT", "/url/path", &buffer)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
+
 			httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
 
 			response := httptest.NewRecorder()
@@ -286,9 +247,7 @@ func TestInvalidFileNames(t *testing.T) {
 	testhelper.ConfigureSecret()
 
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
 	for _, testCase := range []struct {
@@ -305,16 +264,12 @@ func TestInvalidFileNames(t *testing.T) {
 
 		writer := multipart.NewWriter(buffer)
 		file, err := writer.CreateFormFile("file", testCase.filename)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		fmt.Fprint(file, "test")
 		writer.Close()
 
 		httpRequest, err := http.NewRequest("POST", "/example", buffer)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
 
 		response := httptest.NewRecorder()

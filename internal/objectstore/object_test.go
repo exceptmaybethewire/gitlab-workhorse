@@ -21,8 +21,11 @@ const testTimeout = 10 * time.Second
 func testObjectUploadNoErrors(t *testing.T, useDeleteURL bool) {
 	assert := assert.New(t)
 
-	osStub, ts := test.StartObjectStore()
-	defer ts.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	osStub, ts, err := test.StartObjectStore(ctx)
+	require.NoError(t, err)
 
 	objectURL := ts.URL + test.ObjectPath
 	var deleteURL string
@@ -30,10 +33,10 @@ func testObjectUploadNoErrors(t *testing.T, useDeleteURL bool) {
 		deleteURL = objectURL
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctxRequest, cancelRequest := context.WithCancel(ctx)
+	defer cancelRequest()
 
-	object, err := objectstore.NewObject(ctx, objectURL, deleteURL, testTimeout, test.ObjectSize)
+	object, err := objectstore.NewObject(ctxRequest, objectURL, deleteURL, testTimeout, test.ObjectSize)
 	require.NoError(t, err)
 
 	// copy data
@@ -49,7 +52,7 @@ func testObjectUploadNoErrors(t *testing.T, useDeleteURL bool) {
 	assert.Equal(osStub.GetObjectMD5(test.ObjectPath), object.MD5())
 
 	// Checking cleanup
-	cancel()
+	cancelRequest()
 	assert.Equal(1, osStub.PutsCnt(), "Object hasn't been uploaded")
 
 	var expectedDeleteCnt int

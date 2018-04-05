@@ -3,6 +3,7 @@ package artifacts
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore/test"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 
@@ -57,9 +59,7 @@ func testUploadArtifactsFromTestZip(t *testing.T, ts *httptest.Server) *httptest
 
 func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(tempPath)
 
 	archiveData, md5 := createTestZipArchive(t)
@@ -70,74 +70,43 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 	require.NoError(t, err)
 	archiveFile.Close()
 
-	storeServerCalled := 0
-	storeServerMux := http.NewServeMux()
-	storeServerMux.HandleFunc("/url/put", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "PUT", r.Method)
-
-		receivedData, err := ioutil.ReadAll(r.Body)
-		require.NoError(t, err)
-		require.Equal(t, archiveData, receivedData)
-
-		storeServerCalled++
-		w.Header().Set("ETag", md5)
-		w.WriteHeader(200)
-	})
-	storeServerMux.HandleFunc("/store-id", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, archiveFile.Name())
-	})
-
-	responseProcessorCalled := 0
-	responseProcessor := func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "store-id", r.FormValue("file.remote_id"))
-		assert.NotEmpty(t, r.FormValue("file.remote_url"))
-		w.WriteHeader(200)
-		responseProcessorCalled++
-	}
-
-	storeServer := httptest.NewServer(storeServerMux)
-	defer storeServer.Close()
-
 	tests := []struct {
 		name    string
 		preauth api.Response
 	}{
 		{
-			name: "ObjectStore Upload",
-			preauth: api.Response{
-				RemoteObject: api.RemoteObject{
-					StoreURL: storeServer.URL + "/url/put",
-					ID:       "store-id",
-					GetURL:   storeServer.URL + "/store-id",
-				},
-			},
+			name:    "ObjectStore Upload",
+			preauth: api.Response{},
 		},
 		{
-			name: "ObjectStore and FileStore Upload",
-			preauth: api.Response{
-				TempPath: tempPath,
-				RemoteObject: api.RemoteObject{
-					StoreURL: storeServer.URL + "/url/put",
-					ID:       "store-id",
-					GetURL:   storeServer.URL + "/store-id",
-				},
-			},
+			name:    "ObjectStore and FileStore Upload",
+			preauth: api.Response{TempPath: tempPath},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			storeServerCalled = 0
-			responseProcessorCalled = 0
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			ts := testArtifactsUploadServer(t, test.preauth, responseProcessor)
+			osStub, testServer, err := test.StartObjectStore(ctx)
+			require.NoError(t, err)
+
+			objectPath := "/bucket/object"
+			objectURL := testServer.URL + objectPath
+			testCase.preauth.RemoteObject = api.RemoteObject{
+				ID:       "object-id",
+				GetURL:   objectURL,
+				StoreURL: objectURL,
+			}
+
+			ts := testArtifactsUploadServer(t, testCase.preauth, nil)
 			defer ts.Close()
 
 			contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 			response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
 			testhelper.AssertResponseCode(t, response, 200)
-			assert.Equal(t, 1, storeServerCalled, "store should be called only once")
-			assert.Equal(t, 1, responseProcessorCalled, "response processor should be called only once")
+			assert.Equal(t, md5, osStub.GetObjectMD5(objectPath))
 		})
 	}
 }
