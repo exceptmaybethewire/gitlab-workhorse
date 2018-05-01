@@ -21,7 +21,7 @@ type TomlDuration struct {
 	time.Duration
 }
 
-func (d *TomlDuration) UnmarshalTest(text []byte) error {
+func (d *TomlDuration) UnmarshalText(text []byte) error {
 	temp, err := time.ParseDuration(string(text))
 	d.Duration = temp
 	return err
