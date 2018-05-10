@@ -7,8 +7,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
@@ -36,11 +34,6 @@ var httpTransport = &http.Transport{
 
 var httpClient = &http.Client{
 	Transport: httpTransport,
-}
-
-// IsGoogleCloudStorage checks if the provided URL is from Google Cloud Storage service
-func IsGoogleCloudStorage(u *url.URL) bool {
-	return strings.ToLower(u.Host) == "storage.googleapis.com"
 }
 
 type StatusCodeError error
@@ -166,22 +159,5 @@ func (o *Object) extractMD5(h http.Header) {
 }
 
 func (o *Object) delete() {
-	if o.DeleteURL == "" {
-		return
-	}
-
-	<-o.ctx.Done()
-
-	req, err := http.NewRequest(http.MethodDelete, o.DeleteURL, nil)
-	if err != nil {
-		objectStorageUploadRequestsRequestFailed.Inc()
-		return
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		objectStorageUploadRequestsRequestFailed.Inc()
-		return
-	}
-	resp.Body.Close()
+	syncAndRequest(o.ctx, "DELETE", o.DeleteURL)
 }

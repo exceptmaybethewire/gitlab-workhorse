@@ -81,7 +81,7 @@ func (fh *FileHandler) GitLabFinalizeFields(prefix string) map[string]string {
 // SaveFileFromReader persists the provided reader content to all the location specified in opts. A cleanup will be performed once ctx is Done
 // Make sure the provided context will not expire before finalizing upload with GitLab Rails.
 func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts *SaveFileOpts) (fh *FileHandler, err error) {
-	var object *objectstore.Object
+	var remoteWriter io.WriteCloser
 	fh = &FileHandler{
 		Name:      opts.TempFilePrefix,
 		RemoteID:  opts.RemoteID,
@@ -97,13 +97,20 @@ func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts 
 		}
 	}()
 
-	if opts.IsRemote() {
-		object, err = objectstore.NewObject(ctx, opts.PresignedPut, opts.PresignedDelete, opts.Timeout, size)
+	if opts.IsMultipart() {
+		remoteWriter, err = objectstore.NewMultipart(ctx, opts.PresignedParts, opts.PresignedCompleteMultipart, opts.PresignedAbortMultipart, opts.PresignedDelete, opts.Timeout, opts.PartSize)
 		if err != nil {
 			return nil, err
 		}
 
-		writers = append(writers, object)
+		writers = append(writers, remoteWriter)
+	} else if opts.IsRemote() {
+		remoteWriter, err = objectstore.NewObject(ctx, opts.PresignedPut, opts.PresignedDelete, opts.Timeout, size)
+		if err != nil {
+			return nil, err
+		}
+
+		writers = append(writers, remoteWriter)
 	}
 
 	if opts.IsLocal() {
@@ -133,13 +140,15 @@ func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts 
 
 	if opts.IsRemote() {
 		// we need to close the writer in order to get ETag header
-		err = object.Close()
+		err = remoteWriter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if fh.MD5() != object.MD5() {
-			return nil, MD5Error(fmt.Errorf("expected md5 %s, got %s", fh.MD5(), object.MD5()))
+		if object, ok := remoteWriter.(*objectstore.Object); ok {
+			if fh.MD5() != object.MD5() {
+				return nil, MD5Error(fmt.Errorf("expected md5 %s, got %s", fh.MD5(), object.MD5()))
+			}
 		}
 	}
 

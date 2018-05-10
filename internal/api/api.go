@@ -67,6 +67,17 @@ func NewAPI(myURL *url.URL, version string, roundTripper *badgateway.RoundTrippe
 
 type HandleFunc func(http.ResponseWriter, *http.Request, *Response)
 
+type MultipartUploadParams struct {
+	// PartSize is the exact size of each uploaded part. Only the last one can be smaller
+	PartSize int64
+	// PartsURL contains the presigned URLs for each part
+	PartsURL []string
+	// CompleteURL is a presigned URL for CompleteMulipartUpload
+	CompleteURL string
+	// AbortURL is a presigned URL for AbortMultipartUpload
+	AbortURL string
+}
+
 type RemoteObject struct {
 	// GetURL is an S3 GetObject URL
 	GetURL string
@@ -78,6 +89,8 @@ type RemoteObject struct {
 	ID string
 	// Timeout is a number that represents timeout in seconds for sending data to StoreURL
 	Timeout int
+	// MultipartUpload contains presigned URLs for S3 MultipartUpload
+	MultipartUpload *MultipartUploadParams
 }
 
 type Response struct {
