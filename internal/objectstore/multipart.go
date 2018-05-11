@@ -11,6 +11,8 @@ import (
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
@@ -167,7 +169,7 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 }
 
 func (m *Multipart) uploadPart(url string, body io.Reader, timeout time.Duration, size int64) (string, error) {
-	part, err := NewObject(m.ctx, url, "", timeout, size)
+	part, err := newObject(m.ctx, url, "", timeout, size, false)
 	if err != nil {
 		return "", err
 	}
@@ -203,30 +205,30 @@ func (m *Multipart) Close() error {
 }
 
 func (m *Multipart) delete() {
-	syncAndRequest(m.ctx, "DELETE", m.DeleteURL)
+	syncAndDelete(m.ctx, m.DeleteURL)
 }
 
 func (m *Multipart) abort() {
-	syncAndRequest(m.ctx, "DELETE", m.AbortURL)
+	syncAndDelete(m.ctx, m.AbortURL)
 }
 
-// syncAndRequest wait for sync Context to be Done and then performs the requested HTTP call
-func syncAndRequest(sync context.Context, method, url string) {
+// syncAndDelete wait for sync Context to be Done and then performs the requested HTTP call
+func syncAndDelete(sync context.Context, url string) {
 	if url == "" {
 		return
 	}
 
 	<-sync.Done()
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
-		objectStorageUploadRequestsRequestFailed.Inc()
+		log.WithError(err).WithField("object", helper.ScrubURLParams(url)).Warning("Delete failed")
 		return
 	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		objectStorageUploadRequestsRequestFailed.Inc()
+		log.WithError(err).WithField("object", helper.ScrubURLParams(url)).Warning("Delete failed")
 		return
 	}
 	resp.Body.Close()

@@ -58,6 +58,10 @@ type Object struct {
 
 // NewObject opens an HTTP connection to Object Store and returns an Object pointer that can be used for uploading.
 func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Duration, size int64) (*Object, error) {
+	return newObject(ctx, putURL, deleteURL, timeout, size, true)
+}
+
+func newObject(ctx context.Context, putURL, deleteURL string, timeout time.Duration, size int64, metrics bool) (*Object, error) {
 	started := time.Now()
 	o := &Object{
 		PutURL:    putURL,
@@ -70,7 +74,9 @@ func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Durat
 	// we should prevent pr.Close() otherwise it may shadow error set with pr.CloseWithError(err)
 	req, err := http.NewRequest(http.MethodPut, o.PutURL, ioutil.NopCloser(pr))
 	if err != nil {
-		objectStorageUploadRequestsRequestFailed.Inc()
+		if metrics {
+			objectStorageUploadRequestsRequestFailed.Inc()
+		}
 		return nil, fmt.Errorf("PUT %q: %v", helper.ScrubURLParams(o.PutURL), err)
 	}
 	req.ContentLength = size
@@ -83,12 +89,16 @@ func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Durat
 	uploadCtx, cancelFn := context.WithTimeout(ctx, timeout)
 	o.ctx = uploadCtx
 
-	objectStorageUploadsOpen.Inc()
+	if metrics {
+		objectStorageUploadsOpen.Inc()
+	}
 
 	go func() {
 		// wait for the upload to finish
 		<-o.ctx.Done()
-		objectStorageUploadTime.Observe(time.Since(started).Seconds())
+		if metrics {
+			objectStorageUploadTime.Observe(time.Since(started).Seconds())
+		}
 
 		// wait for provided context to finish before performing cleanup
 		<-ctx.Done()
@@ -97,7 +107,9 @@ func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Durat
 
 	go func() {
 		defer cancelFn()
-		defer objectStorageUploadsOpen.Dec()
+		if metrics {
+			defer objectStorageUploadsOpen.Dec()
+		}
 		defer func() {
 			// This will be returned as error to the next write operation on the pipe
 			pr.CloseWithError(o.uploadError)
@@ -107,14 +119,18 @@ func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Durat
 
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			objectStorageUploadRequestsRequestFailed.Inc()
+			if metrics {
+				objectStorageUploadRequestsRequestFailed.Inc()
+			}
 			o.uploadError = fmt.Errorf("PUT request %q: %v", helper.ScrubURLParams(o.PutURL), err)
 			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			objectStorageUploadRequestsInvalidStatus.Inc()
+			if metrics {
+				objectStorageUploadRequestsInvalidStatus.Inc()
+			}
 			o.uploadError = StatusCodeError(fmt.Errorf("PUT request %v returned: %s", helper.ScrubURLParams(o.PutURL), resp.Status))
 			return
 		}
@@ -159,5 +175,5 @@ func (o *Object) extractMD5(h http.Header) {
 }
 
 func (o *Object) delete() {
-	syncAndRequest(o.ctx, "DELETE", o.DeleteURL)
+	syncAndDelete(o.ctx, o.DeleteURL)
 }
