@@ -1,14 +1,21 @@
 package test
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
+
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore"
 )
+
+type partsEtagMap map[int]string
 
 // ObjectstoreStub is a testing implementation of ObjectStore.
 // Instead of storing objects it will just save md5sum.
@@ -17,6 +24,8 @@ type ObjectstoreStub struct {
 	bucket map[string]string
 	// overwriteMD5 contains overwrites for md5sum that should be return instead of the regular hash
 	overwriteMD5 map[string]string
+	// multipart is a map of MultipartUploads
+	multipart map[string]partsEtagMap
 
 	puts    int
 	deletes int
@@ -33,6 +42,7 @@ func StartObjectStore() (*ObjectstoreStub, *httptest.Server) {
 func StartObjectStoreWithCustomMD5(md5Hashes map[string]string) (*ObjectstoreStub, *httptest.Server) {
 	os := &ObjectstoreStub{
 		bucket:       make(map[string]string),
+		multipart:    make(map[string]partsEtagMap),
 		overwriteMD5: make(map[string]string),
 	}
 
@@ -68,12 +78,44 @@ func (o *ObjectstoreStub) GetObjectMD5(path string) string {
 	return o.bucket[path]
 }
 
+// InitiateMultipartUpload prepare the ObjectstoreStob to receive a MultipartUpload on path
+// It will return an error if a MultipartUpload is already in progress on that path
+func (o *ObjectstoreStub) InitiateMultipartUpload(path string) error {
+	o.m.Lock()
+	defer o.m.Unlock()
+
+	if o.multipart[path] != nil {
+		return fmt.Errorf("MultipartUpload for %q already in progress", path)
+	}
+
+	o.multipart[path] = make(partsEtagMap)
+	return nil
+}
+
+// Is MultipartUpload check if the given path has a MultipartUpload in progress
+func (o *ObjectstoreStub) IsMultipartUpload(path string) bool {
+	o.m.Lock()
+	defer o.m.Unlock()
+
+	return o.isMultipartUpload(path)
+}
+
+// isMultipartUpload is the lock free version of IsMultipartUpload
+func (o *ObjectstoreStub) isMultipartUpload(path string) bool {
+	return o.multipart[path] != nil
+}
+
 func (o *ObjectstoreStub) removeObject(w http.ResponseWriter, r *http.Request) {
 	o.m.Lock()
 	defer o.m.Unlock()
 
 	objectPath := r.URL.Path
-	if _, ok := o.bucket[objectPath]; ok {
+	if o.isMultipartUpload(objectPath) {
+		o.deletes++
+		delete(o.multipart, objectPath)
+
+		w.WriteHeader(200)
+	} else if _, ok := o.bucket[objectPath]; ok {
 		o.deletes++
 		delete(o.bucket, objectPath)
 
@@ -99,7 +141,66 @@ func (o *ObjectstoreStub) putObject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	o.puts++
+	if o.isMultipartUpload(objectPath) {
+		pNumber := r.URL.Query().Get("partNumber")
+		idx, err := strconv.Atoi(pNumber)
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
+
+		o.multipart[objectPath][idx] = etag
+	} else {
+		o.bucket[objectPath] = etag
+	}
+
+	w.Header().Set("ETag", etag)
+	w.WriteHeader(200)
+}
+
+func (o *ObjectstoreStub) completeMultipartUpload(w http.ResponseWriter, r *http.Request) {
+	o.m.Lock()
+	defer o.m.Unlock()
+
+	objectPath := r.URL.Path
+
+	multipart := o.multipart[objectPath]
+	if multipart == nil {
+		w.WriteHeader(404)
+		return
+	}
+
+	buff := bytes.Buffer{}
+	_, err := io.Copy(&buff, r.Body)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	var msg objectstore.CompleteMultipartUpload
+	err = xml.Unmarshal(buff.Bytes(), &msg)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	for _, part := range msg.Part {
+		etag := multipart[part.PartNumber]
+		if etag != part.ETag {
+			w.WriteHeader(400)
+			return
+		}
+	}
+
+	etag, overwritten := o.overwriteMD5[objectPath]
+	if !overwritten {
+		etag = "not an md5 hash"
+	}
+
 	o.bucket[objectPath] = etag
+	delete(o.multipart, objectPath)
 
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(200)
@@ -110,13 +211,15 @@ func (o *ObjectstoreStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	}
 
-	fmt.Println("ObjectStore Stub:", r.Method, r.URL.Path)
+	fmt.Println("ObjectStore Stub:", r.Method, r.URL.String())
 
 	switch r.Method {
 	case "DELETE":
 		o.removeObject(w, r)
 	case "PUT":
 		o.putObject(w, r)
+	case "POST":
+		o.completeMultipartUpload(w, r)
 	default:
 		w.WriteHeader(404)
 	}

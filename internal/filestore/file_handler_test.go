@@ -132,6 +132,10 @@ func TestSaveFileFromDiskToLocalPath(t *testing.T) {
 }
 
 func TestSaveFile(t *testing.T) {
+	type remote string
+	var noMultipart remote = "no_multipart"
+	var multipart remote = "multipart"
+
 	tmpFolder, err := ioutil.TempDir("", "workhorse-test-tmp")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpFolder)
@@ -139,11 +143,13 @@ func TestSaveFile(t *testing.T) {
 	tests := []struct {
 		name   string
 		local  bool
-		remote bool
+		remote remote
 	}{
 		{name: "Local only", local: true},
-		{name: "Remote only", remote: true},
-		{name: "Both", local: true, remote: true},
+		{name: "Remote only", remote: noMultipart},
+		{name: "Both", local: true, remote: noMultipart},
+		{name: "Multipart only", remote: multipart},
+		{name: "Multipart and Local", local: true, remote: multipart},
 	}
 
 	for _, spec := range tests {
@@ -156,7 +162,8 @@ func TestSaveFile(t *testing.T) {
 			osStub, ts := test.StartObjectStore()
 			defer ts.Close()
 
-			if spec.remote {
+			switch spec.remote {
+			case noMultipart:
 				objectURL := ts.URL + test.ObjectPath
 
 				opts.RemoteID = "test-file"
@@ -166,6 +173,19 @@ func TestSaveFile(t *testing.T) {
 
 				expectedDeletes = 1
 				expectedPuts = 1
+			case multipart:
+				objectURL := ts.URL + test.ObjectPath
+
+				opts.RemoteID = "test-file"
+				opts.RemoteURL = objectURL
+				opts.PresignedDelete = objectURL + "?Signature=AnotherSignature"
+				opts.PartSize = int64(len(test.ObjectContent)/2) + 1
+				opts.PresignedParts = []string{objectURL + "?partNumber=1", objectURL + "?partNumber=2"}
+				opts.PresignedCompleteMultipart = objectURL + "?Signature=CompleteSignature"
+
+				osStub.InitiateMultipartUpload(test.ObjectPath)
+				expectedDeletes = 1
+				expectedPuts = 2
 			}
 
 			if spec.local {
