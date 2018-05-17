@@ -108,7 +108,12 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 			fmt.Println("-> Waiting to receive part", partNumber+1)
 
 			src := io.LimitReader(pr, size)
-			file.Seek(0, io.SeekStart)
+			_, err := file.Seek(0, io.SeekStart)
+			if err != nil {
+				o.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber+1, err)
+				return
+			}
+
 			n, err := io.Copy(file, src)
 			if err != nil {
 				o.uploadError = fmt.Errorf("Cannot write part %d to disk: %v", partNumber+1, err)
@@ -120,7 +125,12 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 			}
 			fmt.Println("-> Received", n, "bytes")
 
-			file.Seek(0, io.SeekStart)
+			_, err = file.Seek(0, io.SeekStart)
+			if err != nil {
+				o.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber+1, err)
+				return
+			}
+
 			fmt.Println("-> Uploading part", partNumber+1)
 			etag, err := o.uploadPart(partURL, file, timeout, n)
 			if err != nil {
