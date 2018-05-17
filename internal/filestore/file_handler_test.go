@@ -132,9 +132,11 @@ func TestSaveFileFromDiskToLocalPath(t *testing.T) {
 }
 
 func TestSaveFile(t *testing.T) {
-	type remote string
-	var noMultipart remote = "no_multipart"
-	var multipart remote = "multipart"
+	type remote int
+	const (
+		remoteSingle remote = iota
+		remoteMultipart
+	)
 
 	tmpFolder, err := ioutil.TempDir("", "workhorse-test-tmp")
 	require.NoError(t, err)
@@ -146,10 +148,10 @@ func TestSaveFile(t *testing.T) {
 		remote remote
 	}{
 		{name: "Local only", local: true},
-		{name: "Remote only", remote: noMultipart},
-		{name: "Both", local: true, remote: noMultipart},
-		{name: "Multipart only", remote: multipart},
-		{name: "Multipart and Local", local: true, remote: multipart},
+		{name: "Remote only", remote: remoteSingle},
+		{name: "Both", local: true, remote: remoteSingle},
+		{name: "Multipart only", remote: remoteMultipart},
+		{name: "Multipart and Local", local: true, remote: remoteMultipart},
 	}
 
 	for _, spec := range tests {
@@ -163,7 +165,7 @@ func TestSaveFile(t *testing.T) {
 			defer ts.Close()
 
 			switch spec.remote {
-			case noMultipart:
+			case remoteSingle:
 				objectURL := ts.URL + test.ObjectPath
 
 				opts.RemoteID = "test-file"
@@ -173,7 +175,7 @@ func TestSaveFile(t *testing.T) {
 
 				expectedDeletes = 1
 				expectedPuts = 1
-			case multipart:
+			case remoteMultipart:
 				objectURL := ts.URL + test.ObjectPath
 
 				opts.RemoteID = "test-file"

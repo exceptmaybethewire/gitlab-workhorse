@@ -1,12 +1,12 @@
 package test
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -80,6 +80,11 @@ func (o *ObjectstoreStub) GetObjectMD5(path string) string {
 
 // InitiateMultipartUpload prepare the ObjectstoreStob to receive a MultipartUpload on path
 // It will return an error if a MultipartUpload is already in progress on that path
+// InitiateMultipartUpload is only used during test setup.
+// Workhorse's production code does not know how to initiate a multipart upload.
+//
+// Real S3 multipart uploads are more complicated than what we do here,
+// but this is enough to verify that workhorse's production code behaves as intended.
 func (o *ObjectstoreStub) InitiateMultipartUpload(path string) error {
 	o.m.Lock()
 	defer o.m.Unlock()
@@ -170,8 +175,8 @@ func (o *ObjectstoreStub) completeMultipartUpload(w http.ResponseWriter, r *http
 		return
 	}
 
-	buff := bytes.Buffer{}
-	_, err := io.Copy(&buff, r.Body)
+	buff, err := ioutil.ReadAll(r.Body)
+
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
@@ -179,7 +184,7 @@ func (o *ObjectstoreStub) completeMultipartUpload(w http.ResponseWriter, r *http
 	}
 
 	var msg objectstore.CompleteMultipartUpload
-	err = xml.Unmarshal(buff.Bytes(), &msg)
+	err = xml.Unmarshal(buff, &msg)
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write([]byte(err.Error()))

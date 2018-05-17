@@ -70,9 +70,8 @@ func GetOpts(apiResponse *api.Response) *SaveFileOpts {
 		opts.PartSize = multiParams.PartSize
 		opts.PresignedCompleteMultipart = multiParams.CompleteURL
 		opts.PresignedAbortMultipart = multiParams.AbortURL
-		for _, url := range multiParams.PartURLs {
-			opts.PresignedParts = append(opts.PresignedParts, url)
-		}
+		opts.PresignedParts = make([]string, len(multiParams.PartURLs))
+		copy(opts.PresignedParts, multiParams.PartURLs)
 	}
 
 	return &opts
