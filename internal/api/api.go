@@ -70,8 +70,8 @@ type HandleFunc func(http.ResponseWriter, *http.Request, *Response)
 type MultipartUploadParams struct {
 	// PartSize is the exact size of each uploaded part. Only the last one can be smaller
 	PartSize int64
-	// PartsURL contains the presigned URLs for each part
-	PartsURL []string
+	// PartURLs contains the presigned URLs for each part
+	PartURLs []string
 	// CompleteURL is a presigned URL for CompleteMulipartUpload
 	CompleteURL string
 	// AbortURL is a presigned URL for AbortMultipartUpload

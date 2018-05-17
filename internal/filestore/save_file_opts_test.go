@@ -89,7 +89,7 @@ func TestGetOpts(t *testing.T) {
 				PartSize:    10,
 				CompleteURL: "http://complete",
 				AbortURL:    "http://abort",
-				PartsURL:    []string{"http://part1", "http://part2"},
+				PartURLs:    []string{"http://part1", "http://part2"},
 			},
 		},
 	}
@@ -128,7 +128,7 @@ func TestGetOpts(t *testing.T) {
 				assert.Equal(test.multipart.CompleteURL, opts.PresignedCompleteMultipart)
 				assert.Equal(test.multipart.AbortURL, opts.PresignedAbortMultipart)
 				assert.Equal(test.multipart.PartSize, opts.PartSize)
-				assert.Equal(test.multipart.PartsURL, opts.PresignedParts)
+				assert.Equal(test.multipart.PartURLs, opts.PresignedParts)
 			}
 		})
 	}
