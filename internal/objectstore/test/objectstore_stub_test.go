@@ -62,17 +62,17 @@ func TestObjectStoreStubDelete404(t *testing.T) {
 }
 
 func TestObjectStoreInitiateMultipartUpload(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	stub, ts := StartObjectStore()
 	defer ts.Close()
 
-	const path string = "/my-multipart"
+	path := "/my-multipart"
 	err := stub.InitiateMultipartUpload(path)
-	assert.NoError(err)
+	require.NoError(err)
 
 	err = stub.InitiateMultipartUpload(path)
-	assert.Error(err, "second attempt to open the same MultipartUpload")
+	require.Error(err, "second attempt to open the same MultipartUpload")
 }
 
 func TestObjectStoreCompleteMultipartUpload(t *testing.T) {
@@ -82,48 +82,74 @@ func TestObjectStoreCompleteMultipartUpload(t *testing.T) {
 	stub, ts := StartObjectStore()
 	defer ts.Close()
 
+	objectURL := ts.URL + ObjectPath
+	parts := []struct {
+		number     int
+		content    string
+		contentMD5 string
+	}{
+		{
+			number:     1,
+			content:    "first part",
+			contentMD5: "550cf6b6e60f65a0e3104a26e70fea42",
+		}, {
+			number:     2,
+			content:    "second part",
+			contentMD5: "920b914bca0a70780b40881b8f376135",
+		},
+	}
+
 	stub.InitiateMultipartUpload(ObjectPath)
 
 	require.NotNil(stub.multipart[ObjectPath])
 	assert.Equal(0, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
 
-	objectURL := ts.URL + ObjectPath
+	// Workhorse knows nothing about S3 MultipartUpload, it receives some URLs
+	//  from GitLab-rails and PUTs chunk of data to each of them.
+	// Then it completes the upload with a final POST
+	partPutURLs := []string{
+		fmt.Sprintf("%s?partNumber=%d", objectURL, 1),
+		fmt.Sprintf("%s?partNumber=%d", objectURL, 2),
+	}
+	completePostURL := objectURL
 
-	for _, i := range []int{1, 2} {
-		req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s?partNumber=%d", objectURL, i), strings.NewReader(ObjectContent))
+	for i, partPutURL := range partPutURLs {
+		part := parts[i]
+
+		req, err := http.NewRequest(http.MethodPut, partPutURL, strings.NewReader(part.content))
 		require.NoError(err)
 
 		_, err = http.DefaultClient.Do(req)
 		require.NoError(err)
 
-		assert.Equal(i, stub.PutsCnt())
+		assert.Equal(i+1, stub.PutsCnt())
 		assert.Equal(0, stub.DeletesCnt())
-		assert.Equal(ObjectMD5, stub.multipart[ObjectPath][i])
-		assert.Empty(stub.GetObjectMD5(ObjectPath))
-		assert.True(stub.IsMultipartUpload(ObjectPath))
+		assert.Equal(part.contentMD5, stub.multipart[ObjectPath][part.number], "Part %d was not uploaded into ObjectStorage", part.number)
+		assert.Empty(stub.GetObjectMD5(ObjectPath), "Part %d was mistakenly uploaded as a single object", part.number)
+		assert.True(stub.IsMultipartUpload(ObjectPath), "MultipartUpload completed or aborted")
 	}
 
 	completeBody := fmt.Sprintf(`<CompleteMultipartUpload>
 		<Part>
 			<PartNumber>1</PartNumber>
-			<ETag>%[1]s</ETag>
+			<ETag>%s</ETag>
 		</Part>
 		<Part>
 			<PartNumber>2</PartNumber>
-			<ETag>%[1]s</ETag>
+			<ETag>%s</ETag>
 		</Part>
-	</CompleteMultipartUpload>`, ObjectMD5)
-	req, err := http.NewRequest(http.MethodPost, objectURL, strings.NewReader(completeBody))
+	</CompleteMultipartUpload>`, parts[0].contentMD5, parts[1].contentMD5)
+	req, err := http.NewRequest(http.MethodPost, completePostURL, strings.NewReader(completeBody))
 	require.NoError(err)
 
 	_, err = http.DefaultClient.Do(req)
 	require.NoError(err)
 
-	assert.Equal(2, stub.PutsCnt())
+	assert.Equal(len(parts), stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
-	assert.NotEmpty(stub.GetObjectMD5(ObjectPath))
-	assert.False(stub.IsMultipartUpload(ObjectPath))
+	assert.NotEmpty(stub.GetObjectMD5(ObjectPath), "MultipartUpload not completed")
+	assert.False(stub.IsMultipartUpload(ObjectPath), "MultipartUpload is still in progress")
 }
 
 func TestObjectStoreAbortMultipartUpload(t *testing.T) {
@@ -149,9 +175,9 @@ func TestObjectStoreAbortMultipartUpload(t *testing.T) {
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
-	assert.Equal(ObjectMD5, stub.multipart[ObjectPath][1])
-	assert.Empty(stub.GetObjectMD5(ObjectPath))
-	assert.True(stub.IsMultipartUpload(ObjectPath))
+	assert.Equal(ObjectMD5, stub.multipart[ObjectPath][1], "Part was not uploaded into ObjectStorage")
+	assert.Empty(stub.GetObjectMD5(ObjectPath), "Part was mistakenly uploaded as a single object")
+	assert.True(stub.IsMultipartUpload(ObjectPath), "MultipartUpload completed or aborted")
 
 	req, err = http.NewRequest(http.MethodDelete, objectURL, nil)
 	require.NoError(err)
@@ -161,6 +187,6 @@ func TestObjectStoreAbortMultipartUpload(t *testing.T) {
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(1, stub.DeletesCnt())
-	assert.Empty(stub.GetObjectMD5(ObjectPath))
-	assert.False(stub.IsMultipartUpload(ObjectPath))
+	assert.Empty(stub.GetObjectMD5(ObjectPath), "MultiUpload has been completed")
+	assert.False(stub.IsMultipartUpload(ObjectPath), "MultiUpload is still in progress")
 }

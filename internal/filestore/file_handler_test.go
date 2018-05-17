@@ -148,10 +148,10 @@ func TestSaveFile(t *testing.T) {
 		remote remote
 	}{
 		{name: "Local only", local: true},
-		{name: "Remote only", remote: remoteSingle},
-		{name: "Both", local: true, remote: remoteSingle},
-		{name: "Multipart only", remote: remoteMultipart},
-		{name: "Multipart and Local", local: true, remote: remoteMultipart},
+		{name: "Remote Single only", remote: remoteSingle},
+		{name: "Remote Single and Local", local: true, remote: remoteSingle},
+		{name: "Remote Multipart only", remote: remoteMultipart},
+		{name: "Remote Multipart and Local", local: true, remote: remoteMultipart},
 	}
 
 	for _, spec := range tests {
