@@ -81,9 +81,9 @@ func TestGetOpts(t *testing.T) {
 		multipart *api.MultipartUploadParams
 	}{
 		{
-			name: "No MultipartUpload",
+			name: "Single upload",
 		}, {
-			name: "MultipartUpload",
+			name: "Multipart upload",
 			multipart: &api.MultipartUploadParams{
 				PartSize:    10,
 				CompleteURL: "http://complete",
