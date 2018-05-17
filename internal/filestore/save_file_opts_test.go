@@ -76,7 +76,6 @@ func TestSaveFileOptsLocalAndRemote(t *testing.T) {
 }
 
 func TestGetOpts(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		multipart *api.MultipartUploadParams
