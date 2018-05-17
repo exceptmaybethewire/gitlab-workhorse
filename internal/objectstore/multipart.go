@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,6 +16,9 @@ import (
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
+
+// ErrNotEnoughParts will be used when writing more than size * len(partURLs)
+var ErrNotEnoughParts = errors.New("Not enough Parts")
 
 // Multipart represents a MultipartUpload on a S3 compatible Object Store service.
 // It can be used as io.WriteCloser for uploading an object
@@ -50,7 +54,7 @@ type completeMultipartUploadPart struct {
 // NewMultipart provides Multipart pointer that can be used for uploading. Data written will be split buffered on disk up to size bytes
 // then uploaded with S3 Upload Part. Once Multipart is Closed a final call to CompleteMultipartUpload will be sent.
 // In case of any error a call to AbortMultipartUpload will be made to cleanup all the resources
-func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL, deleteURL string, timeout time.Duration, size int64) (*Multipart, error) {
+func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL, deleteURL string, timeout time.Duration, size int64) (*Multipart, error) {
 	started := time.Now()
 	o := &Multipart{
 		CompleteURL: completeURL,
@@ -84,6 +88,7 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 
 		if o.uploadError != nil {
 			fmt.Println("-> Something went wrong. Aborting uploads")
+			objectStorageUploadRequestsRequestFailed.Inc()
 			o.abort()
 		}
 
@@ -99,14 +104,13 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 
 		fmt.Println("-> Multipart Main loop")
 
-		for partNumber, partURL := range partsURL {
+		for partNumber, partURL := range partURLs {
 			fmt.Println("-> Waiting to receive part", partNumber+1)
 
 			src := io.LimitReader(pr, size)
 			file.Seek(0, io.SeekStart)
 			n, err := io.Copy(file, src)
 			if err != nil {
-				objectStorageUploadRequestsRequestFailed.Inc()
 				o.uploadError = fmt.Errorf("Cannot write part %d to disk: %v", partNumber+1, err)
 				return
 			}
@@ -120,11 +124,15 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 			fmt.Println("-> Uploading part", partNumber+1)
 			etag, err := o.uploadPart(partURL, file, timeout, n)
 			if err != nil {
-				objectStorageUploadRequestsRequestFailed.Inc()
 				o.uploadError = fmt.Errorf("Cannot upload part %d: %v", partNumber+1, err)
 				return
 			}
 			o.etags = append(o.etags, etag)
+		}
+
+		if n, _ := io.Copy(ioutil.Discard, pr); n > 0 {
+			o.uploadError = ErrNotEnoughParts
+			return
 		}
 
 		fmt.Println("-> Completing multipart")
@@ -135,14 +143,12 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 		}
 		body, err := xml.Marshal(cmu)
 		if err != nil {
-			objectStorageUploadRequestsRequestFailed.Inc()
 			o.uploadError = fmt.Errorf("Cannot marshal CompleteMultipartUpload request: %v", err)
 			return
 		}
 
 		req, err := http.NewRequest("POST", o.CompleteURL, bytes.NewReader(body))
 		if err != nil {
-			objectStorageUploadRequestsRequestFailed.Inc()
 			o.uploadError = fmt.Errorf("Cannot create CompleteMultipartUpload request: %v", err)
 			return
 		}
@@ -152,14 +158,12 @@ func NewMultipart(ctx context.Context, partsURL []string, completeURL, abortURL,
 
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			objectStorageUploadRequestsRequestFailed.Inc()
 			o.uploadError = fmt.Errorf("POST request %q: %v", helper.ScrubURLParams(o.CompleteURL), err)
 			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			objectStorageUploadRequestsInvalidStatus.Inc()
 			o.uploadError = StatusCodeError(fmt.Errorf("POST request %v returned: %s", helper.ScrubURLParams(o.CompleteURL), resp.Status))
 			return
 		}

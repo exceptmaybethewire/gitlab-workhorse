@@ -15,6 +15,9 @@ import (
 type MD5Error error
 type SizeError error
 
+// ErrEntityTooLarge means that the uploaded content is bigger then maximum allowed size
+var ErrEntityTooLarge = errors.New("Entity is too large")
+
 // FileHandler represent a file that has been processed for upload
 // it may be either uploaded to an ObjectStore and/or saved on local path.
 type FileHandler struct {
@@ -142,6 +145,9 @@ func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts 
 		// we need to close the writer in order to get ETag header
 		err = remoteWriter.Close()
 		if err != nil {
+			if err == objectstore.ErrNotEnoughParts {
+				return nil, ErrEntityTooLarge
+			}
 			return nil, err
 		}
 

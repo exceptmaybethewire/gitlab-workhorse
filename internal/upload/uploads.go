@@ -35,9 +35,12 @@ func HandleFileUploads(w http.ResponseWriter, r *http.Request, h http.Handler, p
 	// Rewrite multipart form data
 	err := rewriteFormFilesFromMultipart(r, writer, preauth, filter)
 	if err != nil {
-		if err == http.ErrNotMultipart {
+		switch err {
+		case http.ErrNotMultipart:
 			h.ServeHTTP(w, r)
-		} else {
+		case filestore.ErrEntityTooLarge:
+			helper.RequestEntityTooLarge(w, r, err)
+		default:
 			helper.Fail500(w, r, fmt.Errorf("handleFileUploads: extract files from multipart: %v", err))
 		}
 		return

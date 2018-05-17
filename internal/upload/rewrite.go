@@ -115,6 +115,9 @@ func (rew *rewriter) handleFilePart(ctx context.Context, name string, p *multipa
 
 	fh, err := filestore.SaveFileFromReader(ctx, p, -1, opts)
 	if err != nil {
+		if err == filestore.ErrEntityTooLarge {
+			return err
+		}
 		return fmt.Errorf("Persisting multipart file: %v", err)
 	}
 

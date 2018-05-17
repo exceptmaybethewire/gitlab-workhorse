@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore/test"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 
@@ -272,4 +273,46 @@ func TestUploadHandlerSendingToExternalStorageAndSupportRequestTimeout(t *testin
 	response := testUploadArtifactsFromTestZip(t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
 	assert.Equal(t, 1, putCalledTimes, "upload should be called only once")
+}
+
+func TestUploadHandlerMultipartUploadSizeLimit(t *testing.T) {
+	os, server := test.StartObjectStore()
+	defer server.Close()
+
+	err := os.InitiateMultipartUpload(test.ObjectPath)
+	require.NoError(t, err)
+
+	objectURL := server.URL + test.ObjectPath
+
+	partSize := int64(1)
+	uploadSize := 10
+	preauth := api.Response{
+		RemoteObject: api.RemoteObject{
+			ID: "store-id",
+			MultipartUpload: &api.MultipartUploadParams{
+				PartSize:    partSize,
+				PartURLs:    []string{objectURL + "?partNumber=1"},
+				AbortURL:    objectURL,
+				CompleteURL: objectURL,
+			},
+		},
+	}
+
+	responseProcessor := func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("it should not be called")
+	}
+
+	ts := testArtifactsUploadServer(t, preauth, responseProcessor)
+	defer ts.Close()
+
+	contentBuffer, contentType := createTestMultipartForm(t, make([]byte, uploadSize))
+	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
+	testhelper.AssertResponseCode(t, response, http.StatusRequestEntityTooLarge)
+
+	// Poll because AbortMultipartUpload is async
+	for i := 0; os.IsMultipartUpload(test.ObjectPath) && i < 100; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.False(t, os.IsMultipartUpload(test.ObjectPath), "MultipartUpload not aborted")
+	assert.Empty(t, os.GetObjectMD5(test.ObjectPath), "MultipartUpload completed")
 }
