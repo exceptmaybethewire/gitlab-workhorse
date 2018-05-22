@@ -96,7 +96,10 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 	go func() {
 		defer cancelFn()
 		defer objectStorageUploadsOpen.Dec()
-		defer pr.Close()
+		defer func() {
+			// This will be returned as error to the next write operation on the pipe
+			pr.CloseWithError(o.uploadError)
+		}()
 
 		fmt.Println("-> Multipart Main loop")
 

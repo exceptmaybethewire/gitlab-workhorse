@@ -132,8 +132,9 @@ func TestObjectUploadBrokenConnection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	deadline := time.Now().Add(testTimeout)
 	objectURL := ts.URL + test.ObjectPath
-	object, err := objectstore.NewObject(ctx, objectURL, "", testTimeout, -1)
+	object, err := objectstore.NewObject(ctx, objectURL, "", deadline, -1)
 	require.NoError(t, err)
 
 	_, copyErr := io.Copy(object, &endlessReader{})
