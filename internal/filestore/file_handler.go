@@ -101,14 +101,14 @@ func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts 
 	}()
 
 	if opts.IsMultipart() {
-		remoteWriter, err = objectstore.NewMultipart(ctx, opts.PresignedParts, opts.PresignedCompleteMultipart, opts.PresignedAbortMultipart, opts.PresignedDelete, opts.Timeout, opts.PartSize)
+		remoteWriter, err = objectstore.NewMultipart(ctx, opts.PresignedParts, opts.PresignedCompleteMultipart, opts.PresignedAbortMultipart, opts.PresignedDelete, opts.Deadline, opts.PartSize)
 		if err != nil {
 			return nil, err
 		}
 
 		writers = append(writers, remoteWriter)
 	} else if opts.IsRemote() {
-		remoteWriter, err = objectstore.NewObject(ctx, opts.PresignedPut, opts.PresignedDelete, opts.Timeout, size)
+		remoteWriter, err = objectstore.NewObject(ctx, opts.PresignedPut, opts.PresignedDelete, opts.Deadline, size)
 		if err != nil {
 			return nil, err
 		}

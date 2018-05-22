@@ -12,9 +12,6 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
-// DefaultObjectStoreTimeout is the timeout for ObjectStore PutObject api calls
-const DefaultObjectStoreTimeout = 360 * time.Second
-
 // httpTransport defines a http.Transport with values
 // that are more restrictive than for http.DefaultTransport,
 // they define shorter TLS Handshake, and more agressive connection closing
@@ -57,11 +54,11 @@ type Object struct {
 }
 
 // NewObject opens an HTTP connection to Object Store and returns an Object pointer that can be used for uploading.
-func NewObject(ctx context.Context, putURL, deleteURL string, timeout time.Duration, size int64) (*Object, error) {
-	return newObject(ctx, putURL, deleteURL, timeout, size, true)
+func NewObject(ctx context.Context, putURL, deleteURL string, deadline time.Time, size int64) (*Object, error) {
+	return newObject(ctx, putURL, deleteURL, deadline, size, true)
 }
 
-func newObject(ctx context.Context, putURL, deleteURL string, timeout time.Duration, size int64, metrics bool) (*Object, error) {
+func newObject(ctx context.Context, putURL, deleteURL string, deadline time.Time, size int64, metrics bool) (*Object, error) {
 	started := time.Now()
 	o := &Object{
 		PutURL:    putURL,
@@ -82,11 +79,7 @@ func newObject(ctx context.Context, putURL, deleteURL string, timeout time.Durat
 	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	if timeout == 0 {
-		timeout = DefaultObjectStoreTimeout
-	}
-
-	uploadCtx, cancelFn := context.WithTimeout(ctx, timeout)
+	uploadCtx, cancelFn := context.WithDeadline(ctx, deadline)
 	o.ctx = uploadCtx
 
 	if metrics {

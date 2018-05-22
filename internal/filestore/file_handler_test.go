@@ -19,6 +19,10 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore/test"
 )
 
+func testDeadline() time.Time {
+	return time.Now().Add(5 * time.Second)
+}
+
 func assertFileGetsRemovedAsync(t *testing.T, filePath string) {
 	var err error
 
@@ -89,6 +93,7 @@ func TestSaveFileWrongMD5(t *testing.T) {
 		RemoteURL:       objectURL,
 		PresignedPut:    objectURL + "?Signature=ASignature",
 		PresignedDelete: objectURL + "?Signature=AnotherSignature",
+		Deadline:        testDeadline(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -172,6 +177,7 @@ func TestSaveFile(t *testing.T) {
 				opts.RemoteURL = objectURL
 				opts.PresignedPut = objectURL + "?Signature=ASignature"
 				opts.PresignedDelete = objectURL + "?Signature=AnotherSignature"
+				opts.Deadline = testDeadline()
 
 				expectedDeletes = 1
 				expectedPuts = 1
@@ -184,6 +190,7 @@ func TestSaveFile(t *testing.T) {
 				opts.PartSize = int64(len(test.ObjectContent)/2) + 1
 				opts.PresignedParts = []string{objectURL + "?partNumber=1", objectURL + "?partNumber=2"}
 				opts.PresignedCompleteMultipart = objectURL + "?Signature=CompleteSignature"
+				opts.Deadline = testDeadline()
 
 				osStub.InitiateMultipartUpload(test.ObjectPath)
 				expectedDeletes = 1

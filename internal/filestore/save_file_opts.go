@@ -4,8 +4,10 @@ import (
 	"time"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore"
 )
+
+// DefaultObjectStoreTimeout is the timeout for ObjectStore upload operation
+const DefaultObjectStoreTimeout = 360 * time.Second
 
 // SaveFileOpts represents all the options available for saving a file to object store
 type SaveFileOpts struct {
@@ -21,8 +23,8 @@ type SaveFileOpts struct {
 	PresignedPut string
 	// PresignedDelete is a presigned S3 DeleteObject compatible URL.
 	PresignedDelete string
-	// Timeout it the S3 operation timeout. If 0, objectstore.DefaultObjectStoreTimeout will be used
-	Timeout time.Duration
+	// Deadline it the S3 operation deadline, the upload will be aborted if not completed in time
+	Deadline time.Time
 
 	//MultipartUpload parameters
 	// PartSize is the exact size of each uploaded part. Only the last one can be smaller
@@ -54,7 +56,7 @@ func (s *SaveFileOpts) IsMultipart() bool {
 func GetOpts(apiResponse *api.Response) *SaveFileOpts {
 	timeout := time.Duration(apiResponse.RemoteObject.Timeout) * time.Second
 	if timeout == 0 {
-		timeout = objectstore.DefaultObjectStoreTimeout
+		timeout = DefaultObjectStoreTimeout
 	}
 
 	opts := SaveFileOpts{
@@ -63,7 +65,7 @@ func GetOpts(apiResponse *api.Response) *SaveFileOpts {
 		RemoteURL:       apiResponse.RemoteObject.GetURL,
 		PresignedPut:    apiResponse.RemoteObject.StoreURL,
 		PresignedDelete: apiResponse.RemoteObject.DeleteURL,
-		Timeout:         timeout,
+		Deadline:        time.Now().Add(timeout),
 	}
 
 	if multiParams := apiResponse.RemoteObject.MultipartUpload; multiParams != nil {

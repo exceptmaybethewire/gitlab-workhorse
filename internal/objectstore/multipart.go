@@ -54,7 +54,7 @@ type completeMultipartUploadPart struct {
 // NewMultipart provides Multipart pointer that can be used for uploading. Data written will be split buffered on disk up to size bytes
 // then uploaded with S3 Upload Part. Once Multipart is Closed a final call to CompleteMultipartUpload will be sent.
 // In case of any error a call to AbortMultipartUpload will be made to cleanup all the resources
-func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL, deleteURL string, timeout time.Duration, size int64) (*Multipart, error) {
+func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL, deleteURL string, deadline time.Time, size int64) (*Multipart, error) {
 	started := time.Now()
 	o := &Multipart{
 		CompleteURL: completeURL,
@@ -71,11 +71,7 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 		return nil, fmt.Errorf("Unable to create a temporary file for buffering: %v", err)
 	}
 
-	if timeout == 0 {
-		timeout = DefaultObjectStoreTimeout
-	}
-
-	uploadCtx, cancelFn := context.WithTimeout(ctx, timeout)
+	uploadCtx, cancelFn := context.WithDeadline(ctx, deadline)
 	o.ctx = uploadCtx
 
 	objectStorageUploadsOpen.Inc()
@@ -132,7 +128,7 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 			}
 
 			fmt.Println("-> Uploading part", partNumber+1)
-			etag, err := o.uploadPart(partURL, file, timeout, n)
+			etag, err := o.uploadPart(partURL, file, deadline, n)
 			if err != nil {
 				o.uploadError = fmt.Errorf("Cannot upload part %d: %v", partNumber+1, err)
 				return
@@ -182,8 +178,8 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 	return o, nil
 }
 
-func (m *Multipart) uploadPart(url string, body io.Reader, timeout time.Duration, size int64) (string, error) {
-	part, err := newObject(m.ctx, url, "", timeout, size, false)
+func (m *Multipart) uploadPart(url string, body io.Reader, deadline time.Time, size int64) (string, error) {
+	part, err := newObject(m.ctx, url, "", deadline, size, false)
 	if err != nil {
 		return "", err
 	}

@@ -8,7 +8,6 @@ import (
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore"
 )
 
 func TestSaveFileOptsLocalAndRemote(t *testing.T) {
@@ -108,10 +107,11 @@ func TestGetOpts(t *testing.T) {
 					MultipartUpload: test.multipart,
 				},
 			}
+			deadline := time.Now().Add(time.Duration(apiResponse.RemoteObject.Timeout) * time.Second)
 			opts := filestore.GetOpts(apiResponse)
 
 			assert.Equal(apiResponse.TempPath, opts.LocalTempPath)
-			assert.Equal(time.Duration(apiResponse.RemoteObject.Timeout)*time.Second, opts.Timeout)
+			assert.WithinDuration(deadline, opts.Deadline, 100*time.Millisecond)
 			assert.Equal(apiResponse.RemoteObject.ID, opts.RemoteID)
 			assert.Equal(apiResponse.RemoteObject.GetURL, opts.RemoteURL)
 			assert.Equal(apiResponse.RemoteObject.StoreURL, opts.PresignedPut)
@@ -136,7 +136,8 @@ func TestGetOpts(t *testing.T) {
 func TestGetOptsDefaultTimeout(t *testing.T) {
 	assert := assert.New(t)
 
+	deadline := time.Now().Add(filestore.DefaultObjectStoreTimeout)
 	opts := filestore.GetOpts(&api.Response{})
 
-	assert.Equal(objectstore.DefaultObjectStoreTimeout, opts.Timeout)
+	assert.WithinDuration(deadline, opts.Deadline, 100*time.Millisecond)
 }

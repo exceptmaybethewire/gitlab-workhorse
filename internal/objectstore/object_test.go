@@ -33,7 +33,8 @@ func testObjectUploadNoErrors(t *testing.T, useDeleteURL bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	object, err := objectstore.NewObject(ctx, objectURL, deleteURL, testTimeout, test.ObjectSize)
+	deadline := time.Now().Add(testTimeout)
+	object, err := objectstore.NewObject(ctx, objectURL, deleteURL, deadline, test.ObjectSize)
 	require.NoError(t, err)
 
 	// copy data
@@ -86,8 +87,9 @@ func TestObjectUpload404(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	deadline := time.Now().Add(testTimeout)
 	objectURL := ts.URL + test.ObjectPath
-	object, err := objectstore.NewObject(ctx, objectURL, "", testTimeout, test.ObjectSize)
+	object, err := objectstore.NewObject(ctx, objectURL, "", deadline, test.ObjectSize)
 	require.NoError(err)
 	_, err = io.Copy(object, strings.NewReader(test.ObjectContent))
 
