@@ -36,9 +36,6 @@ type Multipart struct {
 	uploadError error
 	// ctx is the internal context bound to the upload request
 	ctx context.Context
-
-	// etags stores each Part ETag. This is a needed parameter for CompleteMultipartUpload
-	etags []string
 }
 
 // CompleteMultipartUpload it the S3 CompleteMultipartUpload body
@@ -55,67 +52,52 @@ type completeMultipartUploadPart struct {
 // then uploaded with S3 Upload Part. Once Multipart is Closed a final call to CompleteMultipartUpload will be sent.
 // In case of any error a call to AbortMultipartUpload will be made to cleanup all the resources
 func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL, deleteURL string, deadline time.Time, size int64) (*Multipart, error) {
-	started := time.Now()
-	o := &Multipart{
-		CompleteURL: completeURL,
-		AbortURL:    abortURL,
-		DeleteURL:   deleteURL,
-	}
-
-	pr, pw := io.Pipe()
-	o.writeCloser = pw
-
 	file, err := ioutil.TempFile("", "part-buffer")
 	if err != nil {
 		objectStorageUploadRequestsRequestFailed.Inc()
 		return nil, fmt.Errorf("Unable to create a temporary file for buffering: %v", err)
 	}
 
+	pr, pw := io.Pipe()
 	uploadCtx, cancelFn := context.WithDeadline(ctx, deadline)
-	o.ctx = uploadCtx
+	m := &Multipart{
+		CompleteURL: completeURL,
+		AbortURL:    abortURL,
+		DeleteURL:   deleteURL,
+		writeCloser: pw,
+		ctx:         uploadCtx,
+	}
+
+	go m.trackUploadTime()
+	go m.cleanup(ctx, file)
 
 	objectStorageUploadsOpen.Inc()
-
-	go func() {
-		// wait for the upload to finish
-		<-o.ctx.Done()
-		objectStorageUploadTime.Observe(time.Since(started).Seconds())
-		os.Remove(file.Name())
-
-		if o.uploadError != nil {
-			fmt.Println("-> Something went wrong. Aborting uploads")
-			objectStorageUploadRequestsRequestFailed.Inc()
-			o.abort()
-		}
-
-		// wait for provided context to finish before performing cleanup
-		<-ctx.Done()
-		o.delete()
-	}()
 
 	go func() {
 		defer cancelFn()
 		defer objectStorageUploadsOpen.Dec()
 		defer func() {
 			// This will be returned as error to the next write operation on the pipe
-			pr.CloseWithError(o.uploadError)
+			pr.CloseWithError(m.uploadError)
 		}()
 
 		fmt.Println("-> Multipart Main loop")
 
-		for partNumber, partURL := range partURLs {
-			fmt.Println("-> Waiting to receive part", partNumber+1)
+		cmu := &CompleteMultipartUpload{}
+		for i, partURL := range partURLs {
+			partNumber := i + 1
+			fmt.Println("-> Waiting to receive part", partNumber)
 
 			src := io.LimitReader(pr, size)
 			_, err := file.Seek(0, io.SeekStart)
 			if err != nil {
-				o.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber+1, err)
+				m.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber, err)
 				return
 			}
 
 			n, err := io.Copy(file, src)
 			if err != nil {
-				o.uploadError = fmt.Errorf("Cannot write part %d to disk: %v", partNumber+1, err)
+				m.uploadError = fmt.Errorf("Cannot write part %d to disk: %v", partNumber, err)
 				return
 			}
 			if n == 0 {
@@ -126,59 +108,86 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 
 			_, err = file.Seek(0, io.SeekStart)
 			if err != nil {
-				o.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber+1, err)
+				m.uploadError = fmt.Errorf("Cannot rewind part %d temporary dump : %v", partNumber, err)
 				return
 			}
 
-			fmt.Println("-> Uploading part", partNumber+1)
-			etag, err := o.uploadPart(partURL, file, deadline, n)
+			fmt.Println("-> Uploading part", partNumber)
+			etag, err := m.uploadPart(partURL, file, deadline, n)
 			if err != nil {
-				o.uploadError = fmt.Errorf("Cannot upload part %d: %v", partNumber+1, err)
+				m.uploadError = fmt.Errorf("Cannot upload part %d: %v", partNumber, err)
 				return
 			}
-			o.etags = append(o.etags, etag)
+			cmu.Part = append(cmu.Part, completeMultipartUploadPart{PartNumber: partNumber, ETag: etag})
 		}
 
 		if n, _ := io.Copy(ioutil.Discard, pr); n > 0 {
-			o.uploadError = ErrNotEnoughParts
+			m.uploadError = ErrNotEnoughParts
 			return
 		}
 
-		fmt.Println("-> Completing multipart")
-		// Complete Multipart
-		cmu := &CompleteMultipartUpload{}
-		for n, etag := range o.etags {
-			cmu.Part = append(cmu.Part, completeMultipartUploadPart{PartNumber: n + 1, ETag: etag})
-		}
-		body, err := xml.Marshal(cmu)
-		if err != nil {
-			o.uploadError = fmt.Errorf("Cannot marshal CompleteMultipartUpload request: %v", err)
-			return
-		}
-
-		req, err := http.NewRequest("POST", o.CompleteURL, bytes.NewReader(body))
-		if err != nil {
-			o.uploadError = fmt.Errorf("Cannot create CompleteMultipartUpload request: %v", err)
-			return
-		}
-		req.ContentLength = int64(len(body))
-		req.Header.Set("Content-Type", "application/xml")
-		req = req.WithContext(o.ctx)
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			o.uploadError = fmt.Errorf("POST request %q: %v", helper.ScrubURLParams(o.CompleteURL), err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			o.uploadError = StatusCodeError(fmt.Errorf("POST request %v returned: %s", helper.ScrubURLParams(o.CompleteURL), resp.Status))
+		if err := m.complete(cmu); err != nil {
+			m.uploadError = err
 			return
 		}
 	}()
 
-	return o, nil
+	return m, nil
+}
+
+func (m *Multipart) trackUploadTime() {
+	started := time.Now()
+	<-m.ctx.Done()
+	objectStorageUploadTime.Observe(time.Since(started).Seconds())
+}
+
+func (m *Multipart) cleanup(ctx context.Context, file *os.File) {
+	// wait for the upload to finish
+	<-m.ctx.Done()
+	if err := os.Remove(file.Name()); err != nil {
+		log.WithError(err).WithField("file", file.Name()).Warning("Unable to delete temporary file")
+	}
+
+	if m.uploadError != nil {
+		fmt.Println("-> Something went wrong. Aborting uploads")
+		objectStorageUploadRequestsRequestFailed.Inc()
+		m.abort()
+	}
+
+	// We have now succesfully uploaded the file to object storage. Another
+	// goroutine will hand off the object to gitlab-rails.
+	<-ctx.Done()
+
+	// gitlab-rails is now done with the object so it's time to delete it.
+	m.delete()
+}
+
+func (m *Multipart) complete(cmu *CompleteMultipartUpload) error {
+	fmt.Println("-> Completing multipart")
+	body, err := xml.Marshal(cmu)
+	if err != nil {
+		return fmt.Errorf("Cannot marshal CompleteMultipartUpload request: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", m.CompleteURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("Cannot create CompleteMultipartUpload request: %v", err)
+	}
+	req.ContentLength = int64(len(body))
+	req.Header.Set("Content-Type", "application/xml")
+	req = req.WithContext(m.ctx)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("POST request %q: %v", helper.ScrubURLParams(m.CompleteURL), err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("POST request %v returned: %s", helper.ScrubURLParams(m.CompleteURL), resp.Status)
+	}
+
+	return nil
 }
 
 func (m *Multipart) uploadPart(url string, body io.Reader, deadline time.Time, size int64) (string, error) {
