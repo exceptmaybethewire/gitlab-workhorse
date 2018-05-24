@@ -97,7 +97,7 @@ func (o *ObjectstoreStub) InitiateMultipartUpload(path string) error {
 	return nil
 }
 
-// Is MultipartUpload check if the given path has a MultipartUpload in progress
+// IsMultipartUpload check if the given path has a MultipartUpload in progress
 func (o *ObjectstoreStub) IsMultipartUpload(path string) bool {
 	o.m.Lock()
 	defer o.m.Unlock()

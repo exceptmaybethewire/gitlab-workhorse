@@ -292,8 +292,8 @@ func TestUploadHandlerMultipartUploadSizeLimit(t *testing.T) {
 			MultipartUpload: &api.MultipartUploadParams{
 				PartSize:    partSize,
 				PartURLs:    []string{objectURL + "?partNumber=1"},
-				AbortURL:    objectURL,
-				CompleteURL: objectURL,
+				AbortURL:    objectURL, // DELETE
+				CompleteURL: objectURL, // POST
 			},
 		},
 	}
@@ -313,6 +313,6 @@ func TestUploadHandlerMultipartUploadSizeLimit(t *testing.T) {
 	for i := 0; os.IsMultipartUpload(test.ObjectPath) && i < 100; i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
-	assert.False(t, os.IsMultipartUpload(test.ObjectPath), "MultipartUpload not aborted")
-	assert.Empty(t, os.GetObjectMD5(test.ObjectPath), "MultipartUpload completed")
+	assert.False(t, os.IsMultipartUpload(test.ObjectPath), "MultipartUpload should not be in progress anymore")
+	assert.Empty(t, os.GetObjectMD5(test.ObjectPath), "upload should have failed, so the object should not exists")
 }

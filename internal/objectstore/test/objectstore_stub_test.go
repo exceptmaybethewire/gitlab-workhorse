@@ -10,6 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func doRequest(req *http.Request) error {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
+}
+
 func TestObjectStoreStub(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
@@ -25,8 +33,7 @@ func TestObjectStoreStub(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPut, objectURL, strings.NewReader(ObjectContent))
 	require.NoError(err)
 
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(err)
+	require.NoError(doRequest(req))
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
@@ -35,8 +42,7 @@ func TestObjectStoreStub(t *testing.T) {
 	req, err = http.NewRequest(http.MethodDelete, objectURL, nil)
 	require.NoError(err)
 
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(err)
+	require.NoError(doRequest(req))
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(1, stub.DeletesCnt())
@@ -56,6 +62,7 @@ func TestObjectStoreStubDelete404(t *testing.T) {
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(err)
+	defer resp.Body.Close()
 	assert.Equal(404, resp.StatusCode)
 
 	assert.Equal(0, stub.DeletesCnt())
@@ -101,7 +108,7 @@ func TestObjectStoreCompleteMultipartUpload(t *testing.T) {
 
 	stub.InitiateMultipartUpload(ObjectPath)
 
-	require.NotNil(stub.multipart[ObjectPath])
+	require.True(stub.IsMultipartUpload(ObjectPath))
 	assert.Equal(0, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
 
@@ -120,8 +127,7 @@ func TestObjectStoreCompleteMultipartUpload(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPut, partPutURL, strings.NewReader(part.content))
 		require.NoError(err)
 
-		_, err = http.DefaultClient.Do(req)
-		require.NoError(err)
+		require.NoError(doRequest(req))
 
 		assert.Equal(i+1, stub.PutsCnt())
 		assert.Equal(0, stub.DeletesCnt())
@@ -143,8 +149,7 @@ func TestObjectStoreCompleteMultipartUpload(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, completePostURL, strings.NewReader(completeBody))
 	require.NoError(err)
 
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(err)
+	require.NoError(doRequest(req))
 
 	assert.Equal(len(parts), stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
@@ -161,7 +166,7 @@ func TestObjectStoreAbortMultipartUpload(t *testing.T) {
 
 	stub.InitiateMultipartUpload(ObjectPath)
 
-	require.NotNil(stub.multipart[ObjectPath])
+	require.True(stub.IsMultipartUpload(ObjectPath))
 	assert.Equal(0, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
 
@@ -170,8 +175,7 @@ func TestObjectStoreAbortMultipartUpload(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s?partNumber=%d", objectURL, 1), strings.NewReader(ObjectContent))
 	require.NoError(err)
 
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(err)
+	require.NoError(doRequest(req))
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(0, stub.DeletesCnt())
@@ -182,8 +186,7 @@ func TestObjectStoreAbortMultipartUpload(t *testing.T) {
 	req, err = http.NewRequest(http.MethodDelete, objectURL, nil)
 	require.NoError(err)
 
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(err)
+	require.NoError(doRequest(req))
 
 	assert.Equal(1, stub.PutsCnt())
 	assert.Equal(1, stub.DeletesCnt())
