@@ -148,6 +148,10 @@ func (o *Object) Close() error {
 
 	<-o.ctx.Done()
 
+	if err := o.ctx.Err(); err == context.DeadlineExceeded {
+		return err
+	}
+
 	return o.uploadError
 }
 

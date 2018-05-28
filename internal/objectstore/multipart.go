@@ -223,6 +223,10 @@ func (m *Multipart) Close() error {
 
 	<-m.ctx.Done()
 
+	if err := m.ctx.Err(); err == context.DeadlineExceeded {
+		return err
+	}
+
 	return m.uploadError
 }
 
