@@ -45,12 +45,7 @@ type Object struct {
 	// md5 is the checksum provided by the Object Store
 	md5 string
 
-	// writeCloser is the writer bound to the PutObject body
-	writeCloser io.WriteCloser
-	// uploadError is the last error occourred during upload
-	uploadError error
-	// ctx is the internal context bound to the upload request
-	ctx context.Context
+	uploader
 }
 
 // NewObject opens an HTTP connection to Object Store and returns an Object pointer that can be used for uploading.
@@ -60,27 +55,24 @@ func NewObject(ctx context.Context, putURL, deleteURL string, deadline time.Time
 
 func newObject(ctx context.Context, putURL, deleteURL string, deadline time.Time, size int64, metrics bool) (*Object, error) {
 	started := time.Now()
-	o := &Object{
-		PutURL:    putURL,
-		DeleteURL: deleteURL,
-	}
-
 	pr, pw := io.Pipe()
-	o.writeCloser = pw
-
 	// we should prevent pr.Close() otherwise it may shadow error set with pr.CloseWithError(err)
-	req, err := http.NewRequest(http.MethodPut, o.PutURL, ioutil.NopCloser(pr))
+	req, err := http.NewRequest(http.MethodPut, putURL, ioutil.NopCloser(pr))
 	if err != nil {
 		if metrics {
 			objectStorageUploadRequestsRequestFailed.Inc()
 		}
-		return nil, fmt.Errorf("PUT %q: %v", helper.ScrubURLParams(o.PutURL), err)
+		return nil, fmt.Errorf("PUT %q: %v", helper.ScrubURLParams(putURL), err)
 	}
 	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	uploadCtx, cancelFn := context.WithDeadline(ctx, deadline)
-	o.ctx = uploadCtx
+	o := &Object{
+		PutURL:    putURL,
+		DeleteURL: deleteURL,
+		uploader:  newUploader(uploadCtx, pw),
+	}
 
 	if metrics {
 		objectStorageUploadsOpen.Inc()
@@ -134,27 +126,6 @@ func newObject(ctx context.Context, putURL, deleteURL string, deadline time.Time
 	return o, nil
 }
 
-// Write implements the standard io.Writer interface: it writes data to the PutObject body.
-func (o *Object) Write(p []byte) (int, error) {
-	return o.writeCloser.Write(p)
-}
-
-// Close implements the standard io.Closer interface: it closes the http client request.
-// This method will also wait for the connection to terminate and return any error occurred during the upload
-func (o *Object) Close() error {
-	if err := o.writeCloser.Close(); err != nil {
-		return err
-	}
-
-	<-o.ctx.Done()
-
-	if err := o.ctx.Err(); err == context.DeadlineExceeded {
-		return err
-	}
-
-	return o.uploadError
-}
-
 // MD5 returns the md5sum of the uploaded returned by the Object Store provider via ETag Header.
 // This method will wait until upload context is done before returning.
 func (o *Object) MD5() string {
@@ -172,5 +143,5 @@ func (o *Object) extractMD5(h http.Header) {
 }
 
 func (o *Object) delete() {
-	syncAndDelete(o.ctx, o.DeleteURL)
+	o.syncAndDelete(o.DeleteURL)
 }

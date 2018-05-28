@@ -30,12 +30,7 @@ type Multipart struct {
 	// DeleteURL is a presigned URL for RemoveObject
 	DeleteURL string
 
-	// writeCloser is the writer bound to the UploadPart body
-	writeCloser io.WriteCloser
-	// uploadError is the last error occourred during upload
-	uploadError error
-	// ctx is the internal context bound to the upload request
-	ctx context.Context
+	uploader
 }
 
 // CompleteMultipartUpload it the S3 CompleteMultipartUpload body
@@ -64,8 +59,7 @@ func NewMultipart(ctx context.Context, partURLs []string, completeURL, abortURL,
 		CompleteURL: completeURL,
 		AbortURL:    abortURL,
 		DeleteURL:   deleteURL,
-		writeCloser: pw,
-		ctx:         uploadCtx,
+		uploader:    newUploader(uploadCtx, pw),
 	}
 
 	go m.trackUploadTime()
@@ -209,53 +203,10 @@ func (m *Multipart) uploadPart(url string, body io.Reader, deadline time.Time, s
 	return part.MD5(), nil
 }
 
-// Write implements the standard io.Writer interface: it writes data to the UploadPart body.
-func (m *Multipart) Write(p []byte) (int, error) {
-	return m.writeCloser.Write(p)
-}
-
-// Close implements the standard io.Closer interface: it closes the http client request.
-// This method will also wait for the connection to terminate and return any error occurred during the upload
-func (m *Multipart) Close() error {
-	if err := m.writeCloser.Close(); err != nil {
-		return err
-	}
-
-	<-m.ctx.Done()
-
-	if err := m.ctx.Err(); err == context.DeadlineExceeded {
-		return err
-	}
-
-	return m.uploadError
-}
-
 func (m *Multipart) delete() {
-	syncAndDelete(m.ctx, m.DeleteURL)
+	m.syncAndDelete(m.DeleteURL)
 }
 
 func (m *Multipart) abort() {
-	syncAndDelete(m.ctx, m.AbortURL)
-}
-
-// syncAndDelete wait for sync Context to be Done and then performs the requested HTTP call
-func syncAndDelete(sync context.Context, url string) {
-	if url == "" {
-		return
-	}
-
-	<-sync.Done()
-
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		log.WithError(err).WithField("object", helper.ScrubURLParams(url)).Warning("Delete failed")
-		return
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		log.WithError(err).WithField("object", helper.ScrubURLParams(url)).Warning("Delete failed")
-		return
-	}
-	resp.Body.Close()
+	m.syncAndDelete(m.AbortURL)
 }
