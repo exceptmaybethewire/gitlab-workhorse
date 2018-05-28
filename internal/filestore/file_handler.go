@@ -12,7 +12,6 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/objectstore"
 )
 
-type MD5Error error
 type SizeError error
 
 // ErrEntityTooLarge means that the uploaded content is bigger then maximum allowed size
@@ -149,12 +148,6 @@ func SaveFileFromReader(ctx context.Context, reader io.Reader, size int64, opts 
 				return nil, ErrEntityTooLarge
 			}
 			return nil, err
-		}
-
-		if object, ok := remoteWriter.(*objectstore.Object); ok {
-			if fh.MD5() != object.MD5() {
-				return nil, MD5Error(fmt.Errorf("expected md5 %s, got %s", fh.MD5(), object.MD5()))
-			}
 		}
 	}
 

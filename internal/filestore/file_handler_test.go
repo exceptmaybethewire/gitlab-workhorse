@@ -80,34 +80,6 @@ func TestSaveFromDiskNotExistingFile(t *testing.T) {
 	assert.Nil(fh, "On error FileHandler should be nil")
 }
 
-func TestSaveFileWrongMD5(t *testing.T) {
-	assert := assert.New(t)
-
-	osStub, ts := test.StartObjectStoreWithCustomMD5(map[string]string{test.ObjectPath: "brokenMD5"})
-	defer ts.Close()
-
-	objectURL := ts.URL + test.ObjectPath
-
-	opts := &filestore.SaveFileOpts{
-		RemoteID:        "test-file",
-		RemoteURL:       objectURL,
-		PresignedPut:    objectURL + "?Signature=ASignature",
-		PresignedDelete: objectURL + "?Signature=AnotherSignature",
-		Deadline:        testDeadline(),
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	fh, err := filestore.SaveFileFromReader(ctx, strings.NewReader(test.ObjectContent), test.ObjectSize, opts)
-	assert.Nil(fh)
-	assert.Error(err)
-	_, isMD5Error := err.(filestore.MD5Error)
-	assert.True(isMD5Error, "Should fail with MD5Error")
-	assert.Equal(1, osStub.PutsCnt(), "File not uploaded")
-
-	cancel() // this will trigger an async cleanup
-	assertObjectStoreDeletedAsync(t, 1, osStub)
-}
-
 func TestSaveFileFromDiskToLocalPath(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
