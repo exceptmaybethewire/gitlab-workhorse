@@ -97,10 +97,13 @@
 			"revisionTime": "2017-08-26T09:06:48Z"
 		},
 		{
-			"checksumSHA1": "6TbprMZzwDk+SaW+JxdxvnauyDk=",
+			"checksumSHA1": "mb0MqzDyYEQMgh8+qwVm1RV4cxc=",
+			"origin": "github.com/nolith/httprs",
 			"path": "github.com/jfbus/httprs",
-			"revision": "32cf48c14a79f94eb3d8100efc00e773c5c8b160",
-			"revisionTime": "2017-11-08T13:45:55Z"
+			"revision": "c978e1f437d6e86fbaa43002332c9d332f6671fc",
+			"revisionTime": "2018-05-25T15:04:27Z",
+			"version": "=bytes-0-",
+			"versionExact": "bytes-0-"
 		},
 		{
 			"checksumSHA1": "oIkoHb8+rM5Etur5HhZVY/sDQKQ=",
