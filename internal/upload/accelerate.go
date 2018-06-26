@@ -36,7 +36,7 @@ func Accelerate(rails PreAuthorizer, h http.Handler) http.Handler {
 	}, "/authorize")
 }
 
-func (s *savedFileTracker) ProcessFile(_ context.Context, fieldName string, file *filestore.FileHandler, _ *multipart.Writer) error {
+func (s *savedFileTracker) ProcessFile(_ *http.Request, fieldName string, file *filestore.FileHandler, _ *multipart.Writer) error {
 	if s.rewrittenFields == nil {
 		s.rewrittenFields = make(map[string]string)
 	}

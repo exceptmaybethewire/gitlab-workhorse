@@ -74,8 +74,9 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	return result.FileHandler, result.error
 }
 
-func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
+func (a *artifactsUploadProcessor) ProcessFile(r *http.Request, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
+	ctx := r.Context()
 
 	if formName != "file" {
 		return fmt.Errorf("Invalid form field: %q", formName)
@@ -84,20 +85,30 @@ func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName str
 		return fmt.Errorf("Artifacts request contains more than one file!")
 	}
 
+	var isMetadataRequired = true
+
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("ProcessFile: context done")
 
 	default:
-		// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
-		metadata, err := a.generateMetadataFromZip(ctx, file)
-		if err != nil {
-			return fmt.Errorf("generateMetadataFromZip: %v", err)
+		if artifactFormat, ok := r.URL.Query()["artifact_format"]; ok {
+			if artifactFormat[0] == "raw" {
+				isMetadataRequired = false
+			}
 		}
 
-		if metadata != nil {
-			for k, v := range metadata.GitLabFinalizeFields("metadata") {
-				writer.WriteField(k, v)
+		if isMetadataRequired {
+			// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
+			metadata, err := a.generateMetadataFromZip(ctx, file)
+			if err != nil {
+				return fmt.Errorf("generateMetadataFromZip: %v", err)
+			}
+
+			if metadata != nil {
+				for k, v := range metadata.GitLabFinalizeFields("metadata") {
+					writer.WriteField(k, v)
+				}
 			}
 		}
 	}
@@ -118,6 +129,7 @@ func (a *artifactsUploadProcessor) Name() string {
 
 func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
+		// fmt.Printf("/internal/artifacts/artifacts_upload.go: UploadArtifacts: \n")
 		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a)}
 
 		upload.HandleFileUploads(w, r, h, a, mg)
