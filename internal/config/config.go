@@ -52,6 +52,7 @@ type Config struct {
 	APIQueueLimit            uint          `toml:"-"`
 	APIQueueTimeout          time.Duration `toml:"-"`
 	APICILongPollingDuration time.Duration `toml:"-"`
+	ETagCaching              bool          `toml:"-"`
 }
 
 // LoadConfig from a file

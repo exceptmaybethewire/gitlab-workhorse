@@ -12,6 +12,7 @@ import (
 	apipkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/artifacts"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/builds"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/etagcaching"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/lfs"
@@ -121,21 +122,31 @@ func (ro *routeEntry) isMatch(cleanedPath string, req *http.Request) bool {
 // We match against URI not containing the relativeUrlRoot:
 // see upstream.ServeHTTP
 
+func (u *Upstream) railsBackend() http.Handler {
+	rails := proxypkg.NewProxy(
+		u.Backend,
+		u.Version,
+		u.RoundTripper,
+	)
+
+	if u.ETagCaching {
+		return etagcaching.Cache(rails)
+	} else {
+		return rails
+	}
+}
+
 func (u *Upstream) configureRoutes() {
 	api := apipkg.NewAPI(
 		u.Backend,
 		u.Version,
 		u.RoundTripper,
 	)
+
 	static := &staticpages.Static{u.DocumentRoot}
 	proxy := senddata.SendData(
 		sendfile.SendFile(
-			apipkg.Block(
-				proxypkg.NewProxy(
-					u.Backend,
-					u.Version,
-					u.RoundTripper,
-				))),
+			apipkg.Block(u.railsBackend())),
 		git.SendArchive,
 		git.SendBlob,
 		git.SendDiff,
