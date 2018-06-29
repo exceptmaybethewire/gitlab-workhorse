@@ -18,9 +18,11 @@ import (
 )
 
 type artifactsUploadProcessor struct {
-	opts         *filestore.SaveFileOpts
-	metadataFile string
-	stored       bool
+	opts           *filestore.SaveFileOpts
+	metadataFile   string
+	stored         bool
+	artifactFormat string
+	artifactType   string
 }
 
 func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, file *filestore.FileHandler) (*filestore.FileHandler, error) {
@@ -74,9 +76,8 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	return result.FileHandler, result.error
 }
 
-func (a *artifactsUploadProcessor) ProcessFile(r *http.Request, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
+func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
-	ctx := r.Context()
 
 	if formName != "file" {
 		return fmt.Errorf("Invalid form field: %q", formName)
@@ -85,20 +86,12 @@ func (a *artifactsUploadProcessor) ProcessFile(r *http.Request, formName string,
 		return fmt.Errorf("Artifacts request contains more than one file!")
 	}
 
-	var isMetadataRequired = true
-
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("ProcessFile: context done")
 
 	default:
-		if artifactFormat, ok := r.URL.Query()["artifact_format"]; ok {
-			if artifactFormat[0] == "raw" {
-				isMetadataRequired = false
-			}
-		}
-
-		if isMetadataRequired {
+		if a.artifactFormat == "zip" {
 			// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
 			metadata, err := a.generateMetadataFromZip(ctx, file)
 			if err != nil {
@@ -129,8 +122,24 @@ func (a *artifactsUploadProcessor) Name() string {
 
 func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		// fmt.Printf("/internal/artifacts/artifacts_upload.go: UploadArtifacts: \n")
-		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a)}
+		err := r.ParseForm()
+
+		if err != nil {
+			panic(err)
+		}
+
+		artifactFormat := r.Form.Get("artifact_format")
+		artifactType := r.Form.Get("artifact_type")
+
+		if artifactFormat == "" {
+			artifactFormat = "zip"
+		}
+
+		if artifactType == "" {
+			artifactType = "archive"
+		}
+
+		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a), artifactFormat: artifactFormat, artifactType: artifactType}
 
 		upload.HandleFileUploads(w, r, h, a, mg)
 	}, "/authorize")

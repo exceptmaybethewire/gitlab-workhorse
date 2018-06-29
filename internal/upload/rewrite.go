@@ -88,7 +88,7 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, pr
 
 		// Copy form field
 		if p.FileName() != "" {
-			err = rew.handleFilePart(r, name, p)
+			err = rew.handleFilePart(r.Context(), name, p)
 		} else {
 			err = rew.copyPart(r.Context(), name, p)
 		}
@@ -101,7 +101,7 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, pr
 	return nil
 }
 
-func (rew *rewriter) handleFilePart(r *http.Request, name string, p *multipart.Part) error {
+func (rew *rewriter) handleFilePart(ctx context.Context, name string, p *multipart.Part) error {
 	multipartFiles.WithLabelValues(rew.filter.Name()).Inc()
 
 	filename := p.FileName()
@@ -113,7 +113,7 @@ func (rew *rewriter) handleFilePart(r *http.Request, name string, p *multipart.P
 	opts := filestore.GetOpts(rew.preauth)
 	opts.TempFilePrefix = filename
 
-	fh, err := filestore.SaveFileFromReader(r.Context(), p, -1, opts)
+	fh, err := filestore.SaveFileFromReader(ctx, p, -1, opts)
 	if err != nil {
 		if err == filestore.ErrEntityTooLarge {
 			return err
@@ -127,7 +127,7 @@ func (rew *rewriter) handleFilePart(r *http.Request, name string, p *multipart.P
 
 	multipartFileUploadBytes.WithLabelValues(rew.filter.Name()).Add(float64(fh.Size))
 
-	return rew.filter.ProcessFile(r, name, fh, rew.writer)
+	return rew.filter.ProcessFile(ctx, name, fh, rew.writer)
 }
 
 func (rew *rewriter) copyPart(ctx context.Context, name string, p *multipart.Part) error {
