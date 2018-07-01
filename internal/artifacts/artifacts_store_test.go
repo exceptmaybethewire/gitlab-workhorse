@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func testUploadArtifactsFromTestZip(t *testing.T, ts *httptest.Server) *httptest
 	archiveData, _ := createTestZipArchive(t)
 	contentBuffer, contentType := createTestMultipartForm(t, archiveData)
 
-	return testUploadArtifacts(contentType, &contentBuffer, t, ts)
+	return testUploadArtifacts(url.Values{}, contentType, &contentBuffer, t, ts)
 }
 
 func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
@@ -135,7 +136,7 @@ func TestUploadHandlerSendingToExternalStorage(t *testing.T) {
 			defer ts.Close()
 
 			contentBuffer, contentType := createTestMultipartForm(t, archiveData)
-			response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
+			response := testUploadArtifacts(url.Values{}, contentType, &contentBuffer, t, ts)
 			testhelper.AssertResponseCode(t, response, 200)
 			assert.Equal(t, 1, storeServerCalled, "store should be called only once")
 			assert.Equal(t, 1, responseProcessorCalled, "response processor should be called only once")
@@ -306,7 +307,7 @@ func TestUploadHandlerMultipartUploadSizeLimit(t *testing.T) {
 	defer ts.Close()
 
 	contentBuffer, contentType := createTestMultipartForm(t, make([]byte, uploadSize))
-	response := testUploadArtifacts(contentType, &contentBuffer, t, ts)
+	response := testUploadArtifacts(url.Values{}, contentType, &contentBuffer, t, ts)
 	testhelper.AssertResponseCode(t, response, http.StatusRequestEntityTooLarge)
 
 	// Poll because AbortMultipartUpload is async
