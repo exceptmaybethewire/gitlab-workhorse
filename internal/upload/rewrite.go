@@ -72,14 +72,6 @@ func rewriteFormFilesFromMultipart(r *http.Request, writer *multipart.Writer, pr
 		filter:  filter,
 	}
 
-	if err = r.ParseForm(); err != nil {
-		return fmt.Errorf("parse multipart form: %v", err)
-	}
-
-	if err = rew.filter.FormParams(r.Form); err != nil {
-		return err
-	}
-
 	for {
 		p, err := reader.NextPart()
 		if err != nil {

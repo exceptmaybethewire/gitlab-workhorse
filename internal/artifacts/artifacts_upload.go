@@ -6,7 +6,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"syscall"
@@ -77,17 +76,6 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	return result.FileHandler, result.error
 }
 
-func (a *artifactsUploadProcessor) FormParams(formParams url.Values) error {
-	if len(formParams["artifact_format"]) == 1 {
-		a.artifactFormat = formParams["artifact_format"][0]
-	}
-
-	if len(formParams["artifact_type"]) == 1 {
-		a.artifactType = formParams["artifact_type"][0]
-	}
-	return nil
-}
-
 func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
 
@@ -103,7 +91,7 @@ func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName str
 		return fmt.Errorf("ProcessFile: context done")
 
 	default:
-		if a.artifactFormat == "zip" || a.artifactFormat == "" {
+		if a.artifactFormat == "zip" {
 			// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
 			metadata, err := a.generateMetadataFromZip(ctx, file)
 			if err != nil {
@@ -134,7 +122,24 @@ func (a *artifactsUploadProcessor) Name() string {
 
 func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a)}
+		err := r.ParseForm()
+
+		if err != nil {
+			panic(err)
+		}
+
+		artifactFormat := r.Form.Get("artifact_format")
+		artifactType := r.Form.Get("artifact_type")
+
+		if artifactFormat == "" {
+			artifactFormat = "zip"
+		}
+
+		if artifactType == "" {
+			artifactType = "archive"
+		}
+
+		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a), artifactFormat: artifactFormat, artifactType: artifactType}
 
 		upload.HandleFileUploads(w, r, h, a, mg)
 	}, "/authorize")

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
@@ -18,7 +17,6 @@ import (
 type MultipartFormProcessor interface {
 	ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error
 	ProcessField(ctx context.Context, formName string, writer *multipart.Writer) error
-	FormParams(formParams url.Values) error
 	Finalize(ctx context.Context) error
 	Name() string
 }

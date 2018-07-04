@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
@@ -35,10 +34,6 @@ func Accelerate(rails PreAuthorizer, h http.Handler) http.Handler {
 		s := &savedFileTracker{request: r}
 		HandleFileUploads(w, r, h, a, s)
 	}, "/authorize")
-}
-
-func (a *savedFileTracker) FormParams(_ url.Values) error {
-	return nil
 }
 
 func (s *savedFileTracker) ProcessFile(_ context.Context, fieldName string, file *filestore.FileHandler, _ *multipart.Writer) error {
