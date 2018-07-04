@@ -163,6 +163,43 @@ func TestUploadHandlerAddingMetadata(t *testing.T) {
 	testhelper.AssertResponseCode(t, response, 200)
 }
 
+func TestUploadHandlerWithGZipFormat(t *testing.T) {
+	// TODO: Pass gzip
+	// TODO: Check metadata skip
+	tempPath, err := ioutil.TempDir("", "uploads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempPath)
+
+	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
+	defer ts.Close()
+
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+	file, err := writer.CreateFormFile("file", "my.file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	defer archive.Close()
+
+	fileInArchive, err := archive.Create("test.file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprint(fileInArchive, "test")
+	archive.Close()
+	writer.Close()
+
+	query := url.Values{}
+	query.Set("artifact_format", "gzip")
+	query.Set("artifact_type", "junit")
+
+	response := testUploadArtifacts(query, writer.FormDataContentType(), &buffer, t, ts)
+	testhelper.AssertResponseCode(t, response, 200)
+}
+
 func TestUploadHandlerForUnsupportedArchive(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
 	if err != nil {
@@ -208,53 +245,4 @@ func TestUploadFormProcessing(t *testing.T) {
 
 	response := testUploadArtifacts(url.Values{}, writer.FormDataContentType(), &buffer, t, ts)
 	testhelper.AssertResponseCode(t, response, 500)
-}
-
-func testRawGzipArtifactRequest(t *testing.T) (string, *bytes.Buffer, *httptest.Server) {
-	tempPath, err := ioutil.TempDir("", "uploads")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempPath)
-
-	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
-
-	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
-	file, err := writer.CreateFormFile("file", "my.file")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rawGzip := gzip.NewWriter(file)
-	defer rawGzip.Close()
-
-	rawGzip.Write([]byte("<testsuites>junit.xml</testsuites>"))
-	rawGzip.Close()
-	writer.Close()
-
-	return writer.FormDataContentType(), &buffer, ts
-}
-
-func TestUploadHandlerWithGZipFormat(t *testing.T) {
-	contentType, buffer, ts := testRawGzipArtifactRequest(t)
-	defer ts.Close()
-
-	query := url.Values{}
-	query.Set("artifact_format", "gzip")
-	query.Set("artifact_type", "junit")
-
-	response := testUploadArtifacts(query, contentType, buffer, t, ts)
-	testhelper.AssertResponseCode(t, response, 200)
-}
-
-func TestUploadHandlerWithGZipFormatButWrongParameter(t *testing.T) {
-	contentType, buffer, ts := testRawGzipArtifactRequest(t)
-	defer ts.Close()
-
-	query := url.Values{}
-	query.Set("artifact_format", "zip")
-	query.Set("artifact_type", "junit")
-
-	response := testUploadArtifacts(query, contentType, buffer, t, ts)
-	testhelper.AssertResponseCode(t, response, 502) // gitlab-zip-metadata: not a zip
 }
