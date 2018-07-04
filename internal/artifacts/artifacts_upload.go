@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -18,11 +19,9 @@ import (
 )
 
 type artifactsUploadProcessor struct {
-	opts           *filestore.SaveFileOpts
-	metadataFile   string
-	stored         bool
-	artifactFormat string
-	artifactType   string
+	opts         *filestore.SaveFileOpts
+	metadataFile string
+	stored       bool
 }
 
 func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, file *filestore.FileHandler) (*filestore.FileHandler, error) {
@@ -79,29 +78,33 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
 
-	if formName != "file" {
+	if formName != "file" && formName != "raw_file" {
 		return fmt.Errorf("Invalid form field: %q", formName)
 	}
-	if a.metadataFile != "" {
-		return fmt.Errorf("Artifacts request contains more than one file!")
+	if a.stored {
+		return errors.New("Artifacts request contains more than one file!")
 	}
+
+	a.stored = true
 
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("ProcessFile: context done")
 
 	default:
-		if a.artifactFormat == "zip" {
-			// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
-			metadata, err := a.generateMetadataFromZip(ctx, file)
-			if err != nil {
-				return fmt.Errorf("generateMetadataFromZip: %v", err)
-			}
+	}
 
-			if metadata != nil {
-				for k, v := range metadata.GitLabFinalizeFields("metadata") {
-					writer.WriteField(k, v)
-				}
+	// Generate metadata only when `file` is send
+	if formName == "file" {
+		// TODO: can we rely on disk for shipping metadata? Not if we split workhorse and rails in 2 different PODs
+		metadata, err := a.generateMetadataFromZip(ctx, file)
+		if err != nil {
+			return fmt.Errorf("generateMetadataFromZip: %v", err)
+		}
+
+		if metadata != nil {
+			for k, v := range metadata.GitLabFinalizeFields("metadata") {
+				writer.WriteField(k, v)
 			}
 		}
 	}
@@ -122,24 +125,7 @@ func (a *artifactsUploadProcessor) Name() string {
 
 func UploadArtifacts(myAPI *api.API, h http.Handler) http.Handler {
 	return myAPI.PreAuthorizeHandler(func(w http.ResponseWriter, r *http.Request, a *api.Response) {
-		err := r.ParseForm()
-
-		if err != nil {
-			panic(err)
-		}
-
-		artifactFormat := r.Form.Get("artifact_format")
-		artifactType := r.Form.Get("artifact_type")
-
-		if artifactFormat == "" {
-			artifactFormat = "zip"
-		}
-
-		if artifactType == "" {
-			artifactType = "archive"
-		}
-
-		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a), artifactFormat: artifactFormat, artifactType: artifactType}
+		mg := &artifactsUploadProcessor{opts: filestore.GetOpts(a)}
 
 		upload.HandleFileUploads(w, r, h, a, mg)
 	}, "/authorize")

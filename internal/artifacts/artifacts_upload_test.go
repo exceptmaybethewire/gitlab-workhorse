@@ -45,6 +45,16 @@ func testArtifactsUploadServer(t *testing.T, authResponse api.Response, bodyProc
 			t.Fatal("Expected POST request")
 		}
 		if opts.IsLocal() {
+			if r.FormValue("raw_file.path") != "" {
+				if r.FormValue("file.name") != "" || r.FormValue("metadata.path") != "" {
+					t.Fatal("Expected POST request")
+					return
+				}
+
+				w.WriteHeader(200)
+				return
+			}
+
 			if r.FormValue("file.path") == "" {
 				w.WriteHeader(501)
 				return
@@ -144,6 +154,37 @@ func TestUploadHandlerAddingMetadata(t *testing.T) {
 	testhelper.AssertResponseCode(t, response, 200)
 }
 
+func TestUploadHandlerForRawNotAddingMetadata(t *testing.T) {
+	tempPath, err := ioutil.TempDir("", "uploads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempPath)
+
+	ts := testArtifactsUploadServer(t, api.Response{TempPath: tempPath}, nil)
+	defer ts.Close()
+
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+	file, err := writer.CreateFormFile("raw_file", "my.file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	defer archive.Close()
+
+	fileInArchive, err := archive.Create("test.file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprint(fileInArchive, "test")
+	archive.Close()
+	writer.Close()
+
+	response := testUploadArtifacts(writer.FormDataContentType(), &buffer, t, ts)
+	testhelper.AssertResponseCode(t, response, 200)
+}
+
 func TestUploadHandlerForUnsupportedArchive(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
 	if err != nil {
@@ -168,7 +209,7 @@ func TestUploadHandlerForUnsupportedArchive(t *testing.T) {
 	testhelper.AssertResponseCode(t, response, 502)
 }
 
-func TestUploadFormProcessing(t *testing.T) {
+func TestUploadFormProcessingForInvalidFormName(t *testing.T) {
 	tempPath, err := ioutil.TempDir("", "uploads")
 	if err != nil {
 		t.Fatal(err)
