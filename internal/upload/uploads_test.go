@@ -10,7 +10,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -29,10 +28,6 @@ import (
 var nilHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 
 type testFormProcessor struct{}
-
-func (a *testFormProcessor) FormParams(formParams url.Values) error {
-	return nil
-}
 
 func (a *testFormProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	return nil
