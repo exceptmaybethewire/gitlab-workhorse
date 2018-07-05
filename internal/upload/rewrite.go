@@ -127,7 +127,7 @@ func (rew *rewriter) handleFilePart(ctx context.Context, name string, p *multipa
 
 	multipartFileUploadBytes.WithLabelValues(rew.filter.Name()).Add(float64(fh.Size))
 
-	return rew.filter.ProcessFile(ctx, name, fh, rew.writer)
+	return rew.filter.ProcessFile(ctx, name, filename, fh, rew.writer)
 }
 
 func (rew *rewriter) copyPart(ctx context.Context, name string, p *multipart.Part) error {

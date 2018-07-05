@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
@@ -74,11 +75,14 @@ func (a *artifactsUploadProcessor) generateMetadataFromZip(ctx context.Context, 
 	return result.FileHandler, result.error
 }
 
-func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error {
+func (a *artifactsUploadProcessor) ProcessFile(ctx context.Context, formName string, fileName string, file *filestore.FileHandler, writer *multipart.Writer) error {
 	//  ProcessFile for artifacts requires file form-data field name to eq `file`
 
 	if formName != "file" {
 		return fmt.Errorf("Invalid form field: %q", formName)
+	}
+	if !strings.Contains(fileName, ".zip") {
+		return nil
 	}
 	if a.metadataFile != "" {
 		return fmt.Errorf("Artifacts request contains more than one file!")

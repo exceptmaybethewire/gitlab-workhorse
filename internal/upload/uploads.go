@@ -15,7 +15,7 @@ import (
 
 // These methods are allowed to have thread-unsafe implementations.
 type MultipartFormProcessor interface {
-	ProcessFile(ctx context.Context, formName string, file *filestore.FileHandler, writer *multipart.Writer) error
+	ProcessFile(ctx context.Context, formName string, fileName string, file *filestore.FileHandler, writer *multipart.Writer) error
 	ProcessField(ctx context.Context, formName string, writer *multipart.Writer) error
 	Finalize(ctx context.Context) error
 	Name() string
