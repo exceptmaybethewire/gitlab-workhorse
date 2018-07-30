@@ -551,7 +551,6 @@ func TestAPIFalsePositivesAreProxied(t *testing.T) {
 		{"GET", "/nested/group/project/blob/master/foo.git/info/refs"},
 		{"POST", "/nested/group/project/blob/master/foo.git/git-upload-pack"},
 		{"POST", "/nested/group/project/blob/master/foo.git/git-receive-pack"},
-		{"PUT", "/nested/group/project/blob/master/foo.git/gitlab-lfs/objects/0000000000000000000000000000000000000000000000000000000000000000/0"},
 		{"GET", "/nested/group/project/blob/master/environments/1/terminal.ws"},
 	} {
 		req, err := http.NewRequest(tc.method, ws.URL+tc.path, nil)

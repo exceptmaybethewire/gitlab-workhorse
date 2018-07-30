@@ -2,6 +2,10 @@
 
 Formerly known as 'gitlab-git-http-server'.
 
+v 5.1.1
+
+- Fix LFS uploads not working with git-lfs 2.5.0 !284
+
 v 5.1.0
 
 - Log using correlation-id bound to the incoming request !258
