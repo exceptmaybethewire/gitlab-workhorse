@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -125,10 +124,8 @@ func closeAfterMaxTime(proxy *Proxy, maxSessionTime int) {
 	}
 
 	<-time.After(time.Duration(maxSessionTime) * time.Second)
-	proxy.StopCh <- errors.New(
-		fmt.Sprintf(
-			"Connection closed: session time greater than maximum time allowed - %v seconds",
-			maxSessionTime,
-		),
+	proxy.StopCh <- fmt.Errorf(
+		"Connection closed: session time greater than maximum time allowed - %v seconds",
+		maxSessionTime,
 	)
 }

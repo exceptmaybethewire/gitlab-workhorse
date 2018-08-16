@@ -40,7 +40,7 @@ func (s *savedFileTracker) ProcessFile(_ context.Context, fieldName string, file
 	return nil
 }
 
-func (_ *savedFileTracker) ProcessField(_ context.Context, _ string, _ *multipart.Writer) error {
+func (s *savedFileTracker) ProcessField(_ context.Context, _ string, _ *multipart.Writer) error {
 	return nil
 }
 

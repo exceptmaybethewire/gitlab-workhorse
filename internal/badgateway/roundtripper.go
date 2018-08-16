@@ -2,6 +2,7 @@ package badgateway
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -37,23 +38,28 @@ func TestRoundTripper(backend *url.URL) *RoundTripper {
 }
 
 func NewRoundTripper(backend *url.URL, socket string, proxyHeadersTimeout time.Duration, developmentMode bool) *RoundTripper {
-	tr := *DefaultTransport
+	tr := &http.Transport{
+		Proxy:               DefaultTransport.Proxy,
+		DialContext:         DefaultTransport.DialContext, // from http.DefaultTransport
+		TLSHandshakeTimeout: DefaultTransport.TLSHandshakeTimeout,
+	}
+
 	tr.ResponseHeaderTimeout = proxyHeadersTimeout
 
 	if backend != nil && socket == "" {
 		address := mustParseAddress(backend.Host, backend.Scheme)
-		tr.Dial = func(_, _ string) (net.Conn, error) {
-			return DefaultDialer.Dial("tcp", address)
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return DefaultDialer.DialContext(ctx, "tcp", address)
 		}
 	} else if socket != "" {
-		tr.Dial = func(_, _ string) (net.Conn, error) {
-			return DefaultDialer.Dial("unix", socket)
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return DefaultDialer.DialContext(ctx, "unix", socket)
 		}
 	} else {
 		panic("backend is nil and socket is empty")
 	}
 
-	return &RoundTripper{Transport: &tr, developmentMode: developmentMode}
+	return &RoundTripper{Transport: tr, developmentMode: developmentMode}
 }
 
 func mustParseAddress(address, scheme string) string {

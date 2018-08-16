@@ -47,9 +47,7 @@ func init() {
 }
 
 const (
-	keySubChannel  = "workhorse:notifications"
-	promStatusMiss = "miss"
-	promStatusHit  = "hit"
+	keySubChannel = "workhorse:notifications"
 )
 
 // KeyChan holds a key and a channel

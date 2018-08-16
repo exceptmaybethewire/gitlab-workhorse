@@ -65,7 +65,7 @@ func allowedXSendfileDownload(t *testing.T, contentFilename string, filePath str
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(actual, contentBytes) != 0 {
+	if !bytes.Equal(actual, contentBytes) {
 		t.Fatal("Unexpected file contents in download")
 	}
 }
@@ -95,7 +95,7 @@ func deniedXSendfileDownload(t *testing.T, contentFilename string, filePath stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(actual, []byte("Denied")) != 0 {
+	if !bytes.Equal(actual, []byte("Denied")) {
 		t.Fatal("Unexpected file contents in download")
 	}
 }

@@ -20,7 +20,7 @@ type AuthChecker struct {
 	Count    int64
 }
 
-var ErrAuthChanged = errors.New("Connection closed: authentication changed or endpoint unavailable.")
+var ErrAuthChanged = errors.New("connection closed: authentication changed or endpoint unavailable")
 
 func NewAuthChecker(f AuthCheckerFunc, template *api.TerminalSettings, stopCh chan error) *AuthChecker {
 	return &AuthChecker{

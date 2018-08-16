@@ -32,7 +32,7 @@ func TestFailedScanDeepen(t *testing.T) {
 	}
 
 	for _, example := range examples {
-		if scanDeepen(bytes.NewReader([]byte(example))) == true {
+		if scanDeepen(bytes.NewReader([]byte(example))) {
 			t.Fatalf("scanDeepen %q: expected result to be false, got true", example)
 		}
 	}

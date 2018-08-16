@@ -62,6 +62,4 @@ func (s *snapshot) Inject(w http.ResponseWriter, r *http.Request, sendData strin
 	if _, err := io.Copy(w, reader); err != nil {
 		helper.LogError(r, fmt.Errorf("SendSnapshot: copy gitaly output: %v", err))
 	}
-
-	return
 }

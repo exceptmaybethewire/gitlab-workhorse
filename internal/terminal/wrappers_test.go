@@ -67,7 +67,7 @@ func assertEqual(t *testing.T, expected, actual *fakeConn, msg string, args ...i
 		t.Fatalf(msg, args...)
 	}
 
-	if bytes.Compare(expected.data, actual.data) != 0 {
+	if !bytes.Equal(expected.data, actual.data) {
 		t.Logf("data expected to be %q but was %q: ", expected.data, actual.data)
 		t.Fatalf(msg, args...)
 	}

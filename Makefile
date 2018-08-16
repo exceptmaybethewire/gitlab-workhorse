@@ -46,16 +46,9 @@ install:	gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata
 	cd $(BUILD_DIR) && install gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata $(DESTDIR)$(PREFIX)/bin/
 
 .PHONY:	test
-test:	govendor prepare-tests
-	go fmt $(LOCAL_PACKAGES) | awk '{ print } END { if (NR > 0) { print "Please run go fmt"; exit 1 } }'
-	_support/detect-context.sh
-	cd $(PKG_BUILD_DIR) && govendor sync
+test: prepare-tests
 	@go test $(LOCAL_PACKAGES)
 	@echo SUCCESS
-
-.PHONY:	govendor
-govendor:
-	@command -v govendor || go get github.com/kardianos/govendor
 
 coverage:
 	go test -cover -coverprofile=test.coverage
@@ -85,3 +78,44 @@ prepare-tests:	testdata/data/group/test.git $(EXE_ALL)
 
 testdata/data/group/test.git:
 	git clone --quiet --bare https://gitlab.com/gitlab-org/gitlab-test.git $@
+
+.PHONY: verify
+verify: lint vet detect-context check-formatting megacheck govendor-status
+
+.PHONY: lint
+lint: $(TARGET_SETUP)
+	@command -v golint || go get -v golang.org/x/lint/golint
+	# Many uncommented exports means we need to hack this a little...
+	@LINT=$$(golint $(LOCAL_PACKAGES)|grep -Ev 'should have|should be|use ALL_CAPS in Go names'); test -z "$$LINT" || (echo "$$LINT" && exit 1)
+
+.PHONY: vet
+vet: $(TARGET_SETUP)
+	@go vet $(LOCAL_PACKAGES)
+
+.PHONY: detect-context
+detect-context: $(TARGET_SETUP)
+	_support/detect-context.sh
+
+.PHONY: check-formatting
+check-formatting: $(TARGET_SETUP) install-goimports
+	@test -z "$$(goimports -e -l $(LOCAL_GO_FILES))" || (echo >&2 "Formatting or imports need fixing: 'make format'" && goimports -e -l $(LOCAL_GO_FILES) && false)
+
+.PHONY: megacheck
+megacheck: $(TARGET_SETUP)
+	@command -v megacheck || go get -v honnef.co/go/tools/cmd/megacheck
+	@megacheck -unused.exit-non-zero $(LOCAL_PACKAGES)
+
+.PHONY: govendor-status
+govendor-status: $(TARGET_SETUP)
+	@command -v govendor || go get github.com/kardianos/govendor
+	cd $(PKG_BUILD_DIR) && govendor sync
+
+.PHONY: format
+format: $(TARGET_SETUP) install-goimports
+    # In addition to fixing imports, goimports also formats your code in the same style as gofmt
+	# so it can be used as a replacement.
+	@goimports -w -l $(LOCAL_GO_FILES)
+
+.PHONY:	goimports
+install-goimports:	$(TARGET_SETUP)
+	@command -v goimports || go get -v golang.org/x/tools/cmd/goimports

@@ -43,18 +43,18 @@ func init() {
 	prometheus.MustRegister(gitHTTPBytes)
 }
 
-type GitHttpResponseWriter struct {
+type HttpResponseWriter struct {
 	helper.CountingResponseWriter
 }
 
-func NewGitHttpResponseWriter(rw http.ResponseWriter) *GitHttpResponseWriter {
+func NewHttpResponseWriter(rw http.ResponseWriter) *HttpResponseWriter {
 	gitHTTPSessionsActive.Inc()
-	return &GitHttpResponseWriter{
+	return &HttpResponseWriter{
 		CountingResponseWriter: helper.NewCountingResponseWriter(rw),
 	}
 }
 
-func (w *GitHttpResponseWriter) Log(r *http.Request, writtenIn int64) {
+func (w *HttpResponseWriter) Log(r *http.Request, writtenIn int64) {
 	service := getService(r)
 	agent := getRequestAgent(r)
 

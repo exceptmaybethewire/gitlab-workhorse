@@ -39,7 +39,7 @@ func TestHandleReceivePack(t *testing.T) {
 	testHandlePostRpc(t, "git-receive-pack", handleReceivePack)
 }
 
-func testHandlePostRpc(t *testing.T, action string, handler func(*GitHttpResponseWriter, *http.Request, *api.Response) error) {
+func testHandlePostRpc(t *testing.T, action string, handler func(*HttpResponseWriter, *http.Request, *api.Response) error) {
 	defer func(oldTesting bool) {
 		Testing = oldTesting
 	}(Testing)
@@ -60,7 +60,7 @@ func testHandlePostRpc(t *testing.T, action string, handler func(*GitHttpRespons
 	resp := &api.Response{GL_ID: GL_ID}
 
 	rr := httptest.NewRecorder()
-	handler(NewGitHttpResponseWriter(rr), req, resp)
+	handler(NewHttpResponseWriter(rr), req, resp)
 
 	// Check HTTP status code
 	if status := rr.Code; status != http.StatusOK {
