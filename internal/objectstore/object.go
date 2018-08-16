@@ -63,7 +63,6 @@ func newObject(ctx context.Context, putURL, deleteURL string, deadline time.Time
 		return nil, fmt.Errorf("PUT %q: %v", helper.ScrubURLParams(putURL), err)
 	}
 	req.ContentLength = size
-	req.Header.Set("Content-Type", "application/octet-stream")
 
 	uploadCtx, cancelFn := context.WithDeadline(ctx, deadline)
 	o := &Object{
