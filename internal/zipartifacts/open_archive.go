@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jfbus/httprs"
+	opentracing "github.com/opentracing/opentracing-go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
@@ -56,6 +57,15 @@ func openHTTPArchive(ctx context.Context, archivePath string) (*zip.Reader, erro
 	req, err := http.NewRequest(http.MethodGet, archivePath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Can't create HTTP GET %q: %v", scrubbedArchivePath, err)
+	}
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		// Transmit the span's TraceContext as HTTP headers on our
+		// outbound request.
+		opentracing.GlobalTracer().Inject(
+			span.Context(),
+			opentracing.HTTPHeaders,
+			opentracing.HTTPHeadersCarrier(req.Header))
 	}
 
 	resp, err := httpClient.Do(req.WithContext(ctx))

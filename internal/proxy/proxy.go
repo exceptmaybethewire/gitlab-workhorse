@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
@@ -39,6 +40,18 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Clone request
 	req := *r
 	req.Header = helper.HeaderClone(r.Header)
+
+	ctx := r.Context()
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+		// Transmit the span's TraceContext as HTTP headers on our
+		// outbound request.
+		opentracing.GlobalTracer().Inject(
+			span.Context(),
+			opentracing.HTTPHeaders,
+			opentracing.HTTPHeadersCarrier(req.Header))
+	}
 
 	// Set Workhorse version
 	req.Header.Set("Gitlab-Workhorse", p.Version)

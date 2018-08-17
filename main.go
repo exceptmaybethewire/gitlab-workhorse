@@ -23,14 +23,15 @@ import (
 	"syscall"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/log"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/queueing"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/redis"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/secret"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/upstream"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Version is the current version of GitLab Workhorse
@@ -74,6 +75,20 @@ func main() {
 	if *printVersion {
 		fmt.Println(version)
 		os.Exit(0)
+	}
+
+	traceCfg, err := jaegercfg.FromEnv()
+	if err != nil {
+		// parsing errors might happen here, such as when we get a string where we expect a number
+		log.NoContext().WithError(err).Warn("Could not parse Jaeger env vars")
+	} else {
+		tracer, closer, err := traceCfg.NewTracer()
+		if err != nil {
+			log.NoContext().WithError(err).Warn("Could not initialize jaeger tracer")
+		} else {
+			defer closer.Close()
+			opentracing.SetGlobalTracer(tracer)
+		}
 	}
 
 	startLogging(logConfig)
