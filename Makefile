@@ -58,11 +58,13 @@ govendor: $(TARGET_SETUP)
 	command -v govendor || go get github.com/kardianos/govendor
 	which govendor
 
+.PHONY:	coverage
 coverage:	prepare-tests
 	go test -cover -coverprofile=test.coverage $(LOCAL_PACKAGES)
 	go tool cover -html=test.coverage -o coverage.html
 	rm -f test.coverage
 
+.PHONY:	fmt
 fmt:
 	go fmt $(LOCAL_PACKAGES)
 
@@ -74,6 +76,7 @@ clean:	clean-workhorse clean-build
 clean-workhorse:
 	rm -f $(EXE_ALL)
 
+.PHONY:	release
 release:
 	sh _support/release.sh
 
