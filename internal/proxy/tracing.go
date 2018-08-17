@@ -19,7 +19,7 @@ func sendRequestWithTracing(ctx context.Context, req *http.Request, inner func(r
 
 	// start a new Span to wrap HTTP request
 	span := opentracing.StartSpan(
-		"ask g	oogle",
+		"reverse proxy",
 		opentracing.ChildOf(parentCtx),
 	)
 
