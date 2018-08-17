@@ -19,6 +19,8 @@ func traceRoute(next http.Handler, method string, regexpStr string) http.Handler
 			log.WithContext(r.Context()).WithError(err).Debug("Trace setup failed")
 		}
 
+		correlationID := r.Context().Value(log.KeyCorrelationID)
+
 		var operationName string
 
 		// TODO: if would be nice to move away from identifying routes by a regexp and switch to readable identifiers
@@ -36,11 +38,13 @@ func traceRoute(next http.Handler, method string, regexpStr string) http.Handler
 		// If wireContext == nil, a root span will be created.
 		serverSpan = opentracing.StartSpan(
 			operationName,
-			ext.RPCServerOption(wireContext))
+			ext.RPCServerOption(wireContext),
+			opentracing.Tag{Key: "Correlation-ID", Value: correlationID},
+		)
 
 		defer serverSpan.Finish()
 
-		// TODO(andrew): example uses Background here. Why?
+		// TODO(andrew): example uses Background here. Find out why?
 		ctx := opentracing.ContextWithSpan(r.Context(), serverSpan)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
