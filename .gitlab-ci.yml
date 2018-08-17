@@ -1,7 +1,10 @@
 image: golang:1.8
 
 verify:
-  image: golang:1.10
+  # Alway uses the lowest supported go version for this
+  # image so as to ensure that we get the correct deprecation
+  # messages
+  image: golang:1.8
   script:
   - make verify
 

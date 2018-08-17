@@ -29,7 +29,7 @@ func newMetadata(file *zip.File) metadata {
 	}
 
 	return metadata{
-		Modified: file.Modified.Unix(),
+		Modified: file.ModTime().Unix(),
 		Mode:     strconv.FormatUint(uint64(file.Mode().Perm()), 8),
 		CRC:      file.CRC32,
 		Size:     file.UncompressedSize64,
