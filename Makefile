@@ -17,7 +17,7 @@ export PATH := $(GOPATH)/bin:$(PATH)
 
 # Returns a list of all non-vendored (local packages)
 LOCAL_PACKAGES = $(shell cd "$(PKG_BUILD_DIR)" && GOPATH=$(GOPATH) go list ./... | grep -v -e '^$(PKG)/vendor/' -e '^$(PKG)/ruby/')
-LOCAL_GO_FILES = $(shell find -L $(PKG_BUILD_DIR)  -name "*.go" -not -path "$(PKG_BUILD_DIR)/vendor/*" -not -path "$(PKG_BUILD_DIR)/_build/*")
+LOCAL_GO_FILES = $(shell find -L $(PKG_BUILD_DIR) -name "*.go" -not -path "$(PKG_BUILD_DIR)/vendor/*" -not -path "$(PKG_BUILD_DIR)/_build/*")
 
 .NOTPARALLEL:
 
