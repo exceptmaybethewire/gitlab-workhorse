@@ -49,7 +49,6 @@ install:	gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata
 test:	$(TARGET_SETUP) govendor prepare-tests
 	go fmt $(LOCAL_PACKAGES) | awk '{ print } END { if (NR > 0) { print "Please run go fmt"; exit 1 } }'
 	_support/detect-context.sh
-	which govendor
 	cd $(PKG_BUILD_DIR) && govendor sync
 	@go test $(LOCAL_PACKAGES)
 	@echo SUCCESS
@@ -59,8 +58,8 @@ govendor: $(TARGET_SETUP)
 	command -v govendor || go get github.com/kardianos/govendor
 	which govendor
 
-coverage:
-	go test -cover -coverprofile=test.coverage
+coverage:	prepare-tests
+	go test -cover -coverprofile=test.coverage $(LOCAL_PACKAGES)
 	go tool cover -html=test.coverage -o coverage.html
 	rm -f test.coverage
 
