@@ -84,23 +84,23 @@ clean-build:
 	rm -rf $(TARGET_DIR)
 
 .PHONY:	prepare-tests
-prepare-tests:	testdata/data/group/test.git $(EXE_ALL)
+prepare-tests:	govendor-sync testdata/data/group/test.git $(EXE_ALL)
 
 testdata/data/group/test.git:
 	git clone --quiet --bare https://gitlab.com/gitlab-org/gitlab-test.git $@
 
 .PHONY: verify
-verify: lint vet detect-context check-formatting megacheck govendor-status
+verify: lint vet detect-context check-formatting megacheck
 
 .PHONY: lint
-lint: $(TARGET_SETUP)
+lint: $(TARGET_SETUP) govendor-sync
 	@echo "### golint"
 	@command -v golint || go get -v golang.org/x/lint/golint
 	# Many uncommented exports means we need to hack this a little...
 	@LINT=$$(golint $(LOCAL_PACKAGES)|grep -Ev 'should have|should be|use ALL_CAPS in Go names'); test -z "$$LINT" || (echo "$$LINT" && exit 1)
 
 .PHONY: vet
-vet: $(TARGET_SETUP)
+vet: $(TARGET_SETUP) govendor-sync
 	@echo "### go vet"
 	@go vet $(LOCAL_PACKAGES)
 
@@ -114,13 +114,15 @@ check-formatting: $(TARGET_SETUP) install-goimports
 	@test -z "$$(goimports -e -l $(LOCAL_GO_FILES))" || (echo >&2 "Formatting or imports need fixing: 'make fmt'" && goimports -e -l $(LOCAL_GO_FILES) && false)
 
 .PHONY: megacheck
-megacheck: $(TARGET_SETUP)
+megacheck: $(TARGET_SETUP) govendor-sync
 	@echo "### megacheck"
 	@command -v megacheck || go get -v honnef.co/go/tools/cmd/megacheck
 	@megacheck -unused.exit-non-zero $(LOCAL_PACKAGES)
 
-.PHONY: govendor-status
-govendor-status: $(TARGET_SETUP)
+# Some vendor components, used for testing are GPL, so we don't distribute them
+# and need to go a sync before using them
+.PHONY: govendor-sync
+govendor-sync: $(TARGET_SETUP)
 	@command -v govendor || go get github.com/kardianos/govendor
 	@echo "### govendor sync"
 	@cd $(PKG_BUILD_DIR) && govendor sync
