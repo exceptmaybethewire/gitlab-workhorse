@@ -79,8 +79,7 @@ func main() {
 
 	traceCfg, err := jaegercfg.FromEnv()
 	if err != nil {
-		// parsing errors might happen here, such as when we get a string where we expect a number
-		log.NoContext().WithError(err).Warn("Could not parse Jaeger env vars")
+		log.NoContext().WithError(err).Info("Skipping jaeger configuration step")
 	} else {
 		tracer, closer, err := traceCfg.NewTracer()
 		if err != nil {

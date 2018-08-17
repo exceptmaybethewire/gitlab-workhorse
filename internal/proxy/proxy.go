@@ -43,8 +43,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-
 		// Transmit the span's TraceContext as HTTP headers on our
 		// outbound request.
 		opentracing.GlobalTracer().Inject(

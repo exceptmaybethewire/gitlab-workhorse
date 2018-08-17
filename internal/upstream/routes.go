@@ -50,10 +50,14 @@ func compileRegexp(regexpStr string) *regexp.Regexp {
 }
 
 func route(method, regexpStr string, handler http.Handler, matchers ...matcherFunc) routeEntry {
+	handler = denyWebsocket(handler)                      // Disallow websockets
+	handler = instrumentRoute(handler, method, regexpStr) // Add prometheus metrics
+	handler = traceRoute(handler, method, regexpStr)      // Add opentracing spans
+
 	return routeEntry{
 		method:   method,
 		regex:    compileRegexp(regexpStr),
-		handler:  instrumentRoute(denyWebsocket(handler), method, regexpStr),
+		handler:  handler,
 		matchers: matchers,
 	}
 }
