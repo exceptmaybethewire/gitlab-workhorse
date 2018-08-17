@@ -59,7 +59,7 @@ govendor: $(TARGET_SETUP)
 	which govendor
 
 .PHONY:	coverage
-coverage:	prepare-tests
+coverage:	$(TARGET_SETUP) prepare-tests
 	go test -cover -coverprofile=test.coverage $(LOCAL_PACKAGES)
 	go tool cover -html=test.coverage -o coverage.html
 	rm -f test.coverage
