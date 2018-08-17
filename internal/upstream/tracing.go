@@ -1,7 +1,6 @@
 package upstream
 
 import (
-	"fmt"
 	"net/http"
 
 	opentracing "github.com/opentracing/opentracing-go"
@@ -21,25 +20,19 @@ func traceRoute(next http.Handler, method string, regexpStr string) http.Handler
 
 		correlationID := r.Context().Value(log.KeyCorrelationID)
 
-		var operationName string
-
 		// TODO: if would be nice to move away from identifying routes by a regexp and switch to readable identifiers
 		if regexpStr == "" {
 			regexpStr = "default"
 		}
 
-		if method == "" {
-			operationName = "route " + regexpStr
-		} else {
-			operationName = fmt.Sprintf("route %v %v", method, regexpStr)
-		}
-
 		// Create the span referring to the RPC client if available.
 		// If wireContext == nil, a root span will be created.
 		serverSpan = opentracing.StartSpan(
-			operationName,
+			r.URL.Path,
 			ext.RPCServerOption(wireContext),
 			opentracing.Tag{Key: "Correlation-ID", Value: correlationID},
+			opentracing.Tag{Key: "Method", Value: method},
+			opentracing.Tag{Key: "Route", Value: regexpStr},
 		)
 
 		defer serverSpan.Finish()

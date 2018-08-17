@@ -34,6 +34,11 @@ type routeEntry struct {
 	matchers []matcherFunc
 }
 
+type routeOptions struct {
+	tracing  bool
+	matchers []matcherFunc
+}
+
 const (
 	apiPattern        = `^/api/`
 	ciAPIPattern      = `^/ci/api/`
@@ -49,16 +54,40 @@ func compileRegexp(regexpStr string) *regexp.Regexp {
 	return regexp.MustCompile(regexpStr)
 }
 
-func route(method, regexpStr string, handler http.Handler, matchers ...matcherFunc) routeEntry {
+func withMatcher(f matcherFunc) func(*routeOptions) {
+	return func(options *routeOptions) {
+		options.matchers = append(options.matchers, f)
+	}
+}
+
+func withoutTracing() func(*routeOptions) {
+	return func(options *routeOptions) {
+		options.tracing = false
+	}
+}
+
+func route(method, regexpStr string, handler http.Handler, opts ...func(*routeOptions)) routeEntry {
+	// Instantiate a route with the defaults
+	options := routeOptions{
+		tracing: true,
+	}
+
+	for _, f := range opts {
+		f(&options)
+	}
+
 	handler = denyWebsocket(handler)                      // Disallow websockets
 	handler = instrumentRoute(handler, method, regexpStr) // Add prometheus metrics
-	handler = traceRoute(handler, method, regexpStr)      // Add opentracing spans
+
+	if options.tracing {
+		handler = traceRoute(handler, method, regexpStr) // Add opentracing spans
+	}
 
 	return routeEntry{
 		method:   method,
 		regex:    compileRegexp(regexpStr),
 		handler:  handler,
-		matchers: matchers,
+		matchers: options.matchers,
 	}
 }
 
@@ -134,9 +163,9 @@ func (u *Upstream) configureRoutes() {
 	u.Routes = []routeEntry{
 		// Git Clone
 		route("GET", gitProjectPattern+`info/refs\z`, git.GetInfoRefsHandler(api)),
-		route("POST", gitProjectPattern+`git-upload-pack\z`, contentEncodingHandler(git.UploadPack(api)), isContentType("application/x-git-upload-pack-request")),
-		route("POST", gitProjectPattern+`git-receive-pack\z`, contentEncodingHandler(git.ReceivePack(api)), isContentType("application/x-git-receive-pack-request")),
-		route("PUT", gitProjectPattern+`gitlab-lfs/objects/([0-9a-f]{64})/([0-9]+)\z`, lfs.PutStore(api, proxy), isContentType("application/octet-stream")),
+		route("POST", gitProjectPattern+`git-upload-pack\z`, contentEncodingHandler(git.UploadPack(api)), withMatcher(isContentType("application/x-git-upload-pack-request"))),
+		route("POST", gitProjectPattern+`git-receive-pack\z`, contentEncodingHandler(git.ReceivePack(api)), withMatcher(isContentType("application/x-git-receive-pack-request"))),
+		route("PUT", gitProjectPattern+`gitlab-lfs/objects/([0-9a-f]{64})/([0-9]+)\z`, lfs.PutStore(api, proxy), withMatcher(isContentType("application/octet-stream"))),
 
 		// CI Artifacts
 		route("POST", apiPattern+`v4/jobs/[0-9]+/artifacts\z`, contentEncodingHandler(artifacts.UploadArtifacts(api, proxy))),
@@ -165,6 +194,7 @@ func (u *Upstream) configureRoutes() {
 				staticpages.CacheExpireMax,
 				NotFoundUnless(u.DevelopmentMode, proxy),
 			),
+			withoutTracing(), // Tracing on assets is very noisy
 		),
 
 		// Uploads
