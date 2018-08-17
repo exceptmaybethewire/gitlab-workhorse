@@ -46,15 +46,17 @@ install:	gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata
 	cd $(BUILD_DIR) && install gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata $(DESTDIR)$(PREFIX)/bin/
 
 .PHONY:	test
-test: prepare-tests
+test: $(TARGET_SETUP) prepare-tests
 	@go test $(LOCAL_PACKAGES)
 	@echo SUCCESS
 
-coverage:
-	go test -cover -coverprofile=test.coverage
+.PHONY:	coverage
+coverage:	$(TARGET_SETUP) prepare-tests
+	go test -cover -coverprofile=test.coverage $(LOCAL_PACKAGES)
 	go tool cover -html=test.coverage -o coverage.html
 	rm -f test.coverage
 
+.PHONY:	fmt
 fmt:
 	go fmt $(LOCAL_PACKAGES)
 
@@ -66,6 +68,7 @@ clean:	clean-workhorse clean-build
 clean-workhorse:
 	rm -f $(EXE_ALL)
 
+.PHONY:	release
 release:
 	sh _support/release.sh
 
@@ -98,7 +101,7 @@ detect-context: $(TARGET_SETUP)
 
 .PHONY: check-formatting
 check-formatting: $(TARGET_SETUP) install-goimports
-	@test -z "$$(goimports -e -l $(LOCAL_GO_FILES))" || (echo >&2 "Formatting or imports need fixing: 'make format'" && goimports -e -l $(LOCAL_GO_FILES) && false)
+	@test -z "$$(goimports -e -l $(LOCAL_GO_FILES))" || (echo >&2 "Formatting or imports need fixing: 'make fmt'" && goimports -e -l $(LOCAL_GO_FILES) && false)
 
 .PHONY: megacheck
 megacheck: $(TARGET_SETUP)
