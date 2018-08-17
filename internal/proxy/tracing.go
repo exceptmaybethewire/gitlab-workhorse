@@ -56,28 +56,28 @@ type clientTrace struct {
 }
 
 func (h *clientTrace) dnsStart(info httptrace.DNSStartInfo) {
-	h.span.LogKV(
+	h.span.LogFields(
 		log.String("event", "DNS start"),
 		log.Object("host", info.Host),
 	)
 }
 
 func (h *clientTrace) dnsDone(httptrace.DNSDoneInfo) {
-	h.span.LogKV(log.String("event", "DNS done"))
+	h.span.LogFields(log.String("event", "DNS done"))
 }
 
 func (h *clientTrace) gotFirstResponseByte() {
-	h.span.LogKV(log.String("event", "First Response Byte"))
+	h.span.LogFields(log.String("event", "First Response Byte"))
 }
 func (h *clientTrace) connectStart(network, addr string) {
-	h.span.LogKV(
+	h.span.LogFields(
 		log.String("event", "Connect Start"),
 		log.String("network", network),
 		log.String("addr", addr),
 	)
 }
 func (h *clientTrace) connectDone(network, addr string, err error) {
-	h.span.LogKV(
+	h.span.LogFields(
 		log.String("event", "Connect Done"),
 		log.String("network", network),
 		log.String("addr", addr),
@@ -86,20 +86,20 @@ func (h *clientTrace) connectDone(network, addr string, err error) {
 }
 
 func (h *clientTrace) tlsHandshakeStart() {
-	h.span.LogKV(log.String("event", "TLS Handshake Start"))
+	h.span.LogFields(log.String("event", "TLS Handshake Start"))
 }
 func (h *clientTrace) tlsHandshakeDone(state tls.ConnectionState, err error) {
-	h.span.LogKV(
+	h.span.LogFields(
 		log.String("event", "TLS Handshake Done"),
 		log.Object("error", err),
 	)
 }
 func (h *clientTrace) wroteHeaders() {
-	h.span.LogKV(log.String("event", "Wrote Headers"))
+	h.span.LogFields(log.String("event", "Wrote Headers"))
 }
 
 func (h *clientTrace) wroteRequest(info httptrace.WroteRequestInfo) {
-	h.span.LogKV(
+	h.span.LogFields(
 		log.String("event", "Wrote Request Info"),
 		log.Object("error", info.Err),
 	)
