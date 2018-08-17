@@ -2,10 +2,11 @@ package git
 
 import (
 	"fmt"
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"os"
 	"os/exec"
 	"syscall"
+
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 )
 
 var execCommand = exec.Command

@@ -111,9 +111,7 @@ func init() {
 }
 
 func instrumentRoute(next http.Handler, method string, regexpStr string) http.Handler {
-	var handler http.Handler
-
-	handler = next
+	handler := next
 
 	handler = promhttp.InstrumentHandlerCounter(httpRequestsTotal.MustCurryWith(map[string]string{"route": regexpStr}), handler)
 	handler = promhttp.InstrumentHandlerDuration(httpRequestDurationSeconds.MustCurryWith(map[string]string{"route": regexpStr}), handler)

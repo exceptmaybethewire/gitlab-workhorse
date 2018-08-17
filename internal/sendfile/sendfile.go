@@ -100,7 +100,6 @@ func (s *sendFileResponseWriter) WriteHeader(status int) {
 	}
 
 	s.rw.WriteHeader(s.status)
-	return
 }
 
 func sendFileFromDisk(w http.ResponseWriter, r *http.Request, file string) {

@@ -89,7 +89,7 @@ func sentinelConn(master string, urls []config.TomlURL) *sentinel.Sentinel {
 			//  For every address it should try to connect to the Sentinel,
 			//  using a short timeout (in the order of a few hundreds of milliseconds).
 			timeout := 500 * time.Millisecond
-			c, err := redis.DialTimeout("tcp", addr, timeout, timeout, timeout)
+			c, err := redis.Dial("tcp", addr, redis.DialConnectTimeout(timeout), redis.DialReadTimeout(timeout), redis.DialWriteTimeout(timeout))
 			if err != nil {
 				errorCounter.WithLabelValues("dial", "sentinel").Inc()
 				return nil, err

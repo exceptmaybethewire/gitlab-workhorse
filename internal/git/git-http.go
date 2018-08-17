@@ -41,12 +41,12 @@ func gitConfigOptions(a *api.Response) []string {
 	return out
 }
 
-func postRPCHandler(a *api.API, name string, handler func(*GitHttpResponseWriter, *http.Request, *api.Response) error) http.Handler {
+func postRPCHandler(a *api.API, name string, handler func(*HttpResponseWriter, *http.Request, *api.Response) error) http.Handler {
 	return repoPreAuthorizeHandler(a, func(rw http.ResponseWriter, r *http.Request, ar *api.Response) {
 		cr := &countReadCloser{ReadCloser: r.Body}
 		r.Body = cr
 
-		w := NewGitHttpResponseWriter(rw)
+		w := NewHttpResponseWriter(rw)
 		defer func() {
 			w.Log(r, cr.Count())
 		}()

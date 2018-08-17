@@ -14,7 +14,7 @@ import (
 
 // Will not return a non-nil error after the response body has been
 // written to.
-func handleUploadPack(w *GitHttpResponseWriter, r *http.Request, a *api.Response) error {
+func handleUploadPack(w *HttpResponseWriter, r *http.Request, a *api.Response) error {
 	// The body will consist almost entirely of 'have XXX' and 'want XXX'
 	// lines; these are about 50 bytes long. With a limit of 10MB the client
 	// can send over 200,000 have/want lines.

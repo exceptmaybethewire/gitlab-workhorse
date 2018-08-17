@@ -155,7 +155,7 @@ func TestDownloadCacheHit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(actual, cachedContent) != 0 {
+	if !bytes.Equal(actual, cachedContent) {
 		t.Fatal("Unexpected file contents in download")
 	}
 }

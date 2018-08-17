@@ -49,7 +49,6 @@ var (
 )
 
 type largeBodyError struct{ error }
-type watchError struct{ error }
 
 type WatchKeyHandler func(key, value string, timeout time.Duration) (redis.WatchKeyStatus, error)
 

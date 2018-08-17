@@ -29,11 +29,8 @@ var (
 			Buckets: objectStorageUploadTimeBuckets,
 		})
 
-	objectStorageUploadRequestsFileFailed      = objectStorageUploadRequests.WithLabelValues("file-failed")
-	objectStorageUploadRequestsRequestFailed   = objectStorageUploadRequests.WithLabelValues("request-failed")
-	objectStorageUploadRequestsInvalidStatus   = objectStorageUploadRequests.WithLabelValues("invalid-status")
-	objectStorageUploadRequestsSucceeded       = objectStorageUploadRequests.WithLabelValues("succeeded")
-	objectStorageUploadRequestsMultipleUploads = objectStorageUploadRequests.WithLabelValues("multiple-uploads")
+	objectStorageUploadRequestsRequestFailed = objectStorageUploadRequests.WithLabelValues("request-failed")
+	objectStorageUploadRequestsInvalidStatus = objectStorageUploadRequests.WithLabelValues("invalid-status")
 
 	objectStorageUploadTimeBuckets = []float64{.1, .25, .5, 1, 2.5, 5, 10, 25, 50, 100}
 )

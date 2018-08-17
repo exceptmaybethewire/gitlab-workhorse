@@ -104,7 +104,7 @@ func (u *Upstream) configureRoutes() {
 		u.Version,
 		u.RoundTripper,
 	)
-	static := &staticpages.Static{u.DocumentRoot}
+	static := &staticpages.Static{DocumentRoot: u.DocumentRoot}
 	proxy := senddata.SendData(
 		sendfile.SendFile(
 			apipkg.Block(

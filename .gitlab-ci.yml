@@ -6,6 +6,10 @@ image: golang:1.8
   - go version
   - make test
 
+verify
+  script:
+  - make verify
+
 test using go 1.8:
   <<: *test_definition
 

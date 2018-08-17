@@ -29,7 +29,7 @@ func newMetadata(file *zip.File) metadata {
 	}
 
 	return metadata{
-		Modified: file.ModTime().Unix(),
+		Modified: file.Modified.Unix(),
 		Mode:     strconv.FormatUint(uint64(file.Mode().Perm()), 8),
 		CRC:      file.CRC32,
 		Size:     file.UncompressedSize64,
@@ -89,7 +89,7 @@ func GenerateZipMetadata(w io.Writer, archive *zip.Reader) error {
 
 	// Sort paths
 	sortedPaths := make([]string, 0, len(zipMap))
-	for path, _ := range zipMap {
+	for path := range zipMap {
 		sortedPaths = append(sortedPaths, path)
 	}
 	sort.Strings(sortedPaths)

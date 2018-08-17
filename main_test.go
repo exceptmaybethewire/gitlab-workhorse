@@ -377,8 +377,6 @@ func sendDataResponder(command string, literalJSON string) *httptest.Server {
 		if _, err := fmt.Fprintf(w, "gibberish"); err != nil {
 			panic(err)
 		}
-
-		return
 	}
 
 	return testhelper.TestServerWithHandler(regexp.MustCompile(`.`), handler)
@@ -569,10 +567,7 @@ func setupStaticFile(fpath, content string) error {
 		return err
 	}
 	staticFile := path.Join(*documentRoot, fpath)
-	if err := ioutil.WriteFile(staticFile, []byte(content), 0666); err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(staticFile, []byte(content), 0666)
 }
 
 func prepareDownloadDir(t *testing.T) {

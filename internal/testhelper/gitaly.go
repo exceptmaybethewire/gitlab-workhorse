@@ -14,8 +14,8 @@ import (
 	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type GitalyTestServer struct {
@@ -156,7 +156,7 @@ func (s *GitalyTestServer) PostReceivePack(stream pb.SmartHTTPService_PostReceiv
 		data = append(data, req.GetData()...)
 	}
 
-	nSends, err := sendBytes(data, 100, func(p []byte) error {
+	nSends, _ := sendBytes(data, 100, func(p []byte) error {
 		return stream.Send(&pb.PostReceivePackResponse{Data: p})
 	})
 
@@ -203,7 +203,7 @@ func (s *GitalyTestServer) PostUploadPack(stream pb.SmartHTTPService_PostUploadP
 		data = append(data, req.GetData()...)
 	}
 
-	nSends, err := sendBytes(data, 100, func(p []byte) error {
+	nSends, _ := sendBytes(data, 100, func(p []byte) error {
 		return stream.Send(&pb.PostUploadPackResponse{Data: p})
 	})
 
@@ -517,7 +517,7 @@ func sendBytes(data []byte, chunkSize int, sender func([]byte) error) (int, erro
 
 func (s *GitalyTestServer) finalError() error {
 	if code := s.finalMessageCode; code != codes.OK {
-		return grpc.Errorf(code, "error as specified by test")
+		return status.Errorf(code, "error as specified by test")
 	}
 
 	return nil

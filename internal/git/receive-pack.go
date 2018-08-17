@@ -13,7 +13,7 @@ import (
 
 // Will not return a non-nil error after the response body has been
 // written to.
-func handleReceivePack(w *GitHttpResponseWriter, r *http.Request, a *api.Response) error {
+func handleReceivePack(w *HttpResponseWriter, r *http.Request, a *api.Response) error {
 	action := getService(r)
 	writePostRPCHeader(w, action)
 

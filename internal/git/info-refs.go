@@ -21,7 +21,7 @@ func GetInfoRefsHandler(a *api.API) http.Handler {
 }
 
 func handleGetInfoRefs(rw http.ResponseWriter, r *http.Request, a *api.Response) {
-	w := NewGitHttpResponseWriter(rw)
+	w := NewHttpResponseWriter(rw)
 	// Log 0 bytes in because we ignore the request body (and there usually is none anyway).
 	defer w.Log(r, 0)
 
