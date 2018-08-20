@@ -27,15 +27,15 @@ var (
 	}
 )
 
-type Upstream struct {
+type upstream struct {
 	config.Config
 	URLPrefix    urlprefix.Prefix
 	Routes       []routeEntry
 	RoundTripper *badgateway.RoundTripper
 }
 
-func NewUpstream(cfg config.Config) *Upstream {
-	up := Upstream{
+func NewUpstream(cfg config.Config) http.Handler {
+	up := upstream{
 		Config: cfg,
 	}
 	if up.Backend == nil {
@@ -47,7 +47,7 @@ func NewUpstream(cfg config.Config) *Upstream {
 	return &up
 }
 
-func (u *Upstream) configureURLPrefix() {
+func (u *upstream) configureURLPrefix() {
 	relativeURLRoot := u.Backend.Path
 	if !strings.HasSuffix(relativeURLRoot, "/") {
 		relativeURLRoot += "/"
@@ -55,7 +55,7 @@ func (u *Upstream) configureURLPrefix() {
 	u.URLPrefix = urlprefix.Prefix(relativeURLRoot)
 }
 
-func (u *Upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
+func (u *upstream) ServeHTTP(ow http.ResponseWriter, r *http.Request) {
 	// Automatic quasi-intelligent X-Forwarded-For parsing
 	r.RemoteAddr = xff.GetRemoteAddr(r)
 

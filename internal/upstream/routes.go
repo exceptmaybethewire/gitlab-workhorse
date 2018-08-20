@@ -98,7 +98,7 @@ func (ro *routeEntry) isMatch(cleanedPath string, req *http.Request) bool {
 // We match against URI not containing the relativeUrlRoot:
 // see upstream.ServeHTTP
 
-func (u *Upstream) configureRoutes() {
+func (u *upstream) configureRoutes() {
 	api := apipkg.NewAPI(
 		u.Backend,
 		u.Version,
