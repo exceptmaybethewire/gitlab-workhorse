@@ -40,11 +40,11 @@ $(TARGET_SETUP):
 	touch "$(TARGET_SETUP)"
 
 gitlab-zip-cat:	$(TARGET_SETUP) $(shell find cmd/gitlab-zip-cat/ -name '*.go')
-	$(call message,$@)
+	$(call message,Building $@)
 	$(GOBUILD) -o $(BUILD_DIR)/$@ $(PKG)/cmd/$@
 
 gitlab-zip-metadata:	$(TARGET_SETUP) $(shell find cmd/gitlab-zip-metadata/ -name '*.go')
-	$(call message,$@)
+	$(call message,Building $@)
 	$(GOBUILD) -o $(BUILD_DIR)/$@ $(PKG)/cmd/$@
 
 gitlab-workhorse:	$(TARGET_SETUP) $(shell find . -name '*.go' | grep -v '^\./_')
@@ -53,13 +53,13 @@ gitlab-workhorse:	$(TARGET_SETUP) $(shell find . -name '*.go' | grep -v '^\./_')
 
 .PHONY:	install
 install:	gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata
-	$(call message,Building $@)
+	$(call message,$@)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin/
 	cd $(BUILD_DIR) && install gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata $(DESTDIR)$(PREFIX)/bin/
 
 .PHONY:	test
 test: $(TARGET_SETUP) prepare-tests
-	$(call message,Building $@)
+	$(call message,$@)
 	@go test $(LOCAL_PACKAGES)
 	@echo SUCCESS
 
@@ -104,8 +104,7 @@ verify: lint vet detect-context check-formatting megacheck
 lint: $(TARGET_SETUP) govendor-sync
 	$(call message,$@)
 	@command -v golint || go get -v golang.org/x/lint/golint
-	# Many uncommented exports means we need to hack this a little...
-	@LINT=$$(golint $(LOCAL_PACKAGES)|grep -Ev 'should have|should be|use ALL_CAPS in Go names'); test -z "$$LINT" || (echo "$$LINT" && exit 1)
+	@_support/lint.sh $(LOCAL_PACKAGES)
 
 .PHONY: vet
 vet: $(TARGET_SETUP) govendor-sync
