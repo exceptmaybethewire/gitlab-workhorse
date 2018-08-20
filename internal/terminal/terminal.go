@@ -125,7 +125,7 @@ func closeAfterMaxTime(proxy *Proxy, maxSessionTime int) {
 
 	<-time.After(time.Duration(maxSessionTime) * time.Second)
 	proxy.StopCh <- fmt.Errorf(
-		"Connection closed: session time greater than maximum time allowed - %v seconds",
+		"connection closed: session time greater than maximum time allowed - %v seconds",
 		maxSessionTime,
 	)
 }
