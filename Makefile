@@ -10,6 +10,8 @@ VERSION := $(shell git describe)-$(shell date -u +%Y%m%d.%H%M%S)
 GOBUILD := go build -ldflags "-X main.Version=$(VERSION)"
 EXE_ALL := gitlab-zip-cat gitlab-zip-metadata gitlab-workhorse
 
+MINIMUM_SUPPORTED_GO_VERSION := 1.8
+
 # Some users may have these variables set in their environment, but doing so could break
 # their build process, so unset then
 unexport GOROOT
@@ -102,30 +104,30 @@ verify: lint vet detect-context check-formatting megacheck
 
 .PHONY: lint
 lint: $(TARGET_SETUP) govendor-sync
-	$(call message,$@)
+	$(call message,Verify: $@)
 	@command -v golint || go get -v golang.org/x/lint/golint
 	@_support/lint.sh $(LOCAL_PACKAGES)
 
 .PHONY: vet
 vet: $(TARGET_SETUP) govendor-sync
-	$(call message,$@)
+	$(call message,Verify: $@)
 	@go vet $(LOCAL_PACKAGES)
 
 .PHONY: detect-context
 detect-context: $(TARGET_SETUP)
-	$(call message,$@)
+	$(call message,Verify: $@)
 	_support/detect-context.sh
 
 .PHONY: check-formatting
 check-formatting: $(TARGET_SETUP) install-goimports
-	$(call message,$@)
+	$(call message,Verify: $@)
 	@_support/validate-formatting.sh $(LOCAL_GO_FILES)
 
 .PHONY: megacheck
 megacheck: $(TARGET_SETUP) govendor-sync
-	$(call message,$@)
+	$(call message,Verify: $@)
 	@command -v megacheck || go get -v honnef.co/go/tools/cmd/megacheck
-	@megacheck -go 1.8 -unused.exit-non-zero $(LOCAL_PACKAGES)
+	@megacheck -go $(MINIMUM_SUPPORTED_GO_VERSION) -simple.exit-non-zero -unused.exit-non-zero -staticcheck.exit-non-zero $(LOCAL_PACKAGES)
 
 # Some vendor components, used for testing are GPL, so we don't distribute them
 # and need to go a sync before using them
