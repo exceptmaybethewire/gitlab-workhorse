@@ -65,17 +65,6 @@ type clientTrace struct {
 	span opentracing.Span
 }
 
-func (h *clientTrace) dnsStart(info httptrace.DNSStartInfo) {
-	h.span.LogFields(
-		log.String("event", "DNS start"),
-		log.Object("host", info.Host),
-	)
-}
-
-func (h *clientTrace) dnsDone(httptrace.DNSDoneInfo) {
-	h.span.LogFields(log.String("event", "DNS done"))
-}
-
 func (h *clientTrace) gotFirstResponseByte() {
 	h.span.LogFields(log.String("event", "First Response Byte"))
 }
