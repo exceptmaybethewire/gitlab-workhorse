@@ -25,7 +25,7 @@ LOCAL_PACKAGES = $(shell cd "$(PKG_BUILD_DIR)" && GOPATH=$(GOPATH) go list ./...
 LOCAL_GO_FILES = $(shell find -L $(PKG_BUILD_DIR)  -name "*.go" -not -path "$(PKG_BUILD_DIR)/vendor/*" -not -path "$(PKG_BUILD_DIR)/_build/*")
 
 define message
-	@echo "\033[0;33m$(1)\033[0m"
+	@echo "### $(1)"
 endef
 
 .NOTPARALLEL:
@@ -123,6 +123,9 @@ check-formatting: $(TARGET_SETUP) install-goimports
 	$(call message,Verify: $@)
 	@_support/validate-formatting.sh $(LOCAL_GO_FILES)
 
+# Megacheck will tailor some responses given a minimum Go version, so pass that through the CLI
+# Additionally, megacheck will not return failure exit codes unless explicitely told to via the
+# `-simple.exit-non-zero` `-unused.exit-non-zero` and `-staticcheck.exit-non-zero` flags
 .PHONY: megacheck
 megacheck: $(TARGET_SETUP) govendor-sync
 	$(call message,Verify: $@)
