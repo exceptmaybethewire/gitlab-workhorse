@@ -81,6 +81,7 @@ func main() {
 	if err != nil {
 		log.NoContext().WithError(err).Info("Skipping jaeger configuration step")
 	} else {
+		traceCfg.ServiceName = "gitlab-workhorse"
 		tracer, closer, err := traceCfg.NewTracer()
 		if err != nil {
 			log.NoContext().WithError(err).Warn("Could not initialize jaeger tracer")
