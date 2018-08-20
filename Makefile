@@ -22,13 +22,17 @@ export PATH := $(GOPATH)/bin:$(PATH)
 LOCAL_PACKAGES = $(shell cd "$(PKG_BUILD_DIR)" && GOPATH=$(GOPATH) go list ./... | grep -v -e '^$(PKG)/vendor/' -e '^$(PKG)/ruby/')
 LOCAL_GO_FILES = $(shell find -L $(PKG_BUILD_DIR)  -name "*.go" -not -path "$(PKG_BUILD_DIR)/vendor/*" -not -path "$(PKG_BUILD_DIR)/_build/*")
 
+define message
+	@echo "\033[0;33m$(1)\033[0m"
+endef
+
 .NOTPARALLEL:
 
 .PHONY:	all
 all:	clean-build $(EXE_ALL)
 
 $(TARGET_SETUP):
-	@echo "### Setting up $(TARGET_SETUP)"
+	$(call message,"Setting up target directory")
 	rm -rf $(TARGET_DIR)
 	mkdir -p "$(dir $(PKG_BUILD_DIR))"
 	ln -sf ../../../.. "$(PKG_BUILD_DIR)"
@@ -36,57 +40,61 @@ $(TARGET_SETUP):
 	touch "$(TARGET_SETUP)"
 
 gitlab-zip-cat:	$(TARGET_SETUP) $(shell find cmd/gitlab-zip-cat/ -name '*.go')
+	$(call message,$@)
 	$(GOBUILD) -o $(BUILD_DIR)/$@ $(PKG)/cmd/$@
 
 gitlab-zip-metadata:	$(TARGET_SETUP) $(shell find cmd/gitlab-zip-metadata/ -name '*.go')
+	$(call message,$@)
 	$(GOBUILD) -o $(BUILD_DIR)/$@ $(PKG)/cmd/$@
 
 gitlab-workhorse:	$(TARGET_SETUP) $(shell find . -name '*.go' | grep -v '^\./_')
+	$(call message,Building $@)
 	$(GOBUILD) -o $(BUILD_DIR)/$@ $(PKG)
 
 .PHONY:	install
 install:	gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata
-	@echo "### install"
+	$(call message,Building $@)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin/
 	cd $(BUILD_DIR) && install gitlab-workhorse gitlab-zip-cat gitlab-zip-metadata $(DESTDIR)$(PREFIX)/bin/
 
 .PHONY:	test
 test: $(TARGET_SETUP) prepare-tests
-	@echo "### running tests"
+	$(call message,Building $@)
 	@go test $(LOCAL_PACKAGES)
 	@echo SUCCESS
 
 .PHONY:	coverage
 coverage:	$(TARGET_SETUP) prepare-tests
-	@echo "### coverage"
+	$(call message,$@)
 	@go test -cover -coverprofile=test.coverage $(LOCAL_PACKAGES)
 	go tool cover -html=test.coverage -o coverage.html
 	rm -f test.coverage
 
 .PHONY:	clean
 clean:	clean-workhorse clean-build
-	@echo "### clean"
+	$(call message,$@)
 	rm -rf testdata/data testdata/scratch
 
 .PHONY:	clean-workhorse
 clean-workhorse:
-	@echo "### clean-workhorse"
+	$(call message,$@)
 	rm -f $(EXE_ALL)
 
 .PHONY:	release
 release:
-	@echo "### release"
+	$(call message,$@)
 	sh _support/release.sh
 
 .PHONY:	clean-build
 clean-build:
-	@echo "### clean-build"
+	$(call message,$@)
 	rm -rf $(TARGET_DIR)
 
 .PHONY:	prepare-tests
 prepare-tests:	govendor-sync testdata/data/group/test.git $(EXE_ALL)
 
 testdata/data/group/test.git:
+	$(call message,$@)
 	git clone --quiet --bare https://gitlab.com/gitlab-org/gitlab-test.git $@
 
 .PHONY: verify
@@ -94,28 +102,29 @@ verify: lint vet detect-context check-formatting megacheck
 
 .PHONY: lint
 lint: $(TARGET_SETUP) govendor-sync
-	@echo "### golint"
+	$(call message,$@)
 	@command -v golint || go get -v golang.org/x/lint/golint
 	# Many uncommented exports means we need to hack this a little...
 	@LINT=$$(golint $(LOCAL_PACKAGES)|grep -Ev 'should have|should be|use ALL_CAPS in Go names'); test -z "$$LINT" || (echo "$$LINT" && exit 1)
 
 .PHONY: vet
 vet: $(TARGET_SETUP) govendor-sync
-	@echo "### go vet"
+	$(call message,$@)
 	@go vet $(LOCAL_PACKAGES)
 
 .PHONY: detect-context
 detect-context: $(TARGET_SETUP)
+	$(call message,$@)
 	_support/detect-context.sh
 
 .PHONY: check-formatting
 check-formatting: $(TARGET_SETUP) install-goimports
-	@echo "### go vet"
-	@test -z "$$(goimports -e -l $(LOCAL_GO_FILES))" || (echo >&2 "Formatting or imports need fixing: 'make fmt'" && goimports -e -l $(LOCAL_GO_FILES) && false)
+	$(call message,$@)
+	@_support/validate-formatting.sh $(LOCAL_GO_FILES)
 
 .PHONY: megacheck
 megacheck: $(TARGET_SETUP) govendor-sync
-	@echo "### megacheck"
+	$(call message,$@)
 	@command -v megacheck || go get -v honnef.co/go/tools/cmd/megacheck
 	@megacheck -go 1.8 -unused.exit-non-zero $(LOCAL_PACKAGES)
 
@@ -123,17 +132,18 @@ megacheck: $(TARGET_SETUP) govendor-sync
 # and need to go a sync before using them
 .PHONY: govendor-sync
 govendor-sync: $(TARGET_SETUP)
+	$(call message,$@)
 	@command -v govendor || go get github.com/kardianos/govendor
-	@echo "### govendor sync"
 	@cd $(PKG_BUILD_DIR) && govendor sync
 
 # In addition to fixing imports, goimports also formats your code in the same style as gofmt
 # so it can be used as a replacement.
 .PHONY: fmt
 fmt: $(TARGET_SETUP) install-goimports
-	@echo "### goimports"
-	goimports -w -l $(LOCAL_GO_FILES)
+	$(call message,$@)
+	@goimports -w -l $(LOCAL_GO_FILES)
 
 .PHONY:	goimports
 install-goimports:	$(TARGET_SETUP)
+	$(call message,$@)
 	@command -v goimports || go get -v golang.org/x/tools/cmd/goimports
