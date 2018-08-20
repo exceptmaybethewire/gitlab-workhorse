@@ -34,6 +34,7 @@ func TestRoundTripper(backend *url.URL) *RoundTripper {
 
 // NewRoundTripper returns a new RoundTripper instance using the provided values
 func NewRoundTripper(backend *url.URL, socket string, proxyHeadersTimeout time.Duration, developmentMode bool) *RoundTripper {
+	// Copied from the definition of http.DefaultTransport. We can't literally copy http.DefaultTransport because of its hidden internal state.
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           defaultDialer.DialContext,
