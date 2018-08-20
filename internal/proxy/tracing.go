@@ -7,6 +7,7 @@ import (
 	"net/http/httptrace"
 
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
 )
 
@@ -32,6 +33,15 @@ func sendRequestWithTracing(ctx context.Context, req *http.Request, inner func(r
 	trace := newClientTrace(span)
 	ctx = httptrace.WithClientTrace(ctx, trace)
 	req = req.WithContext(ctx)
+
+	ext.SpanKindRPCClient.Set(span)
+	ext.HTTPUrl.Set(span, req.URL.String())
+	ext.HTTPMethod.Set(span, req.Method)
+	span.Tracer().Inject(
+		span.Context(),
+		opentracing.HTTPHeaders,
+		opentracing.HTTPHeadersCarrier(req.Header),
+	)
 
 	inner(req)
 }
