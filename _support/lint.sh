@@ -1,7 +1,5 @@
 #!/bin/sh
 
-set -eu
-
 # Unfortunately, workhorse fails many lint checks which we currently ignore
 LINT_RESULT=$(golint "$@"|grep -Ev 'should have|should be|use ALL_CAPS in Go names')
 
