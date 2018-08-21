@@ -8,7 +8,8 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/opentracing/opentracing-go/log"
+	ot_log "github.com/opentracing/opentracing-go/log"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/log"
 )
 
 func sendRequestWithTracing(ctx context.Context, req *http.Request, inner func(req *http.Request)) {
@@ -20,7 +21,7 @@ func sendRequestWithTracing(ctx context.Context, req *http.Request, inner func(r
 
 	// start a new Span to wrap HTTP request
 	span := opentracing.StartSpan(
-		"reverse proxy",
+		"proxy",
 		opentracing.ChildOf(parentCtx),
 	)
 
@@ -37,11 +38,13 @@ func sendRequestWithTracing(ctx context.Context, req *http.Request, inner func(r
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, req.URL.String())
 	ext.HTTPMethod.Set(span, req.Method)
-	span.Tracer().Inject(
-		span.Context(),
-		opentracing.HTTPHeaders,
-		opentracing.HTTPHeadersCarrier(req.Header),
-	)
+
+	carrier := opentracing.HTTPHeadersCarrier(req.Header)
+	err := span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
+
+	if err != nil {
+		log.WithContext(ctx).WithError(err).Info("tracing span injection failed")
+	}
 
 	inner(req)
 }
@@ -66,40 +69,40 @@ type clientTrace struct {
 }
 
 func (h *clientTrace) gotFirstResponseByte() {
-	h.span.LogFields(log.String("event", "First Response Byte"))
+	h.span.LogFields(ot_log.String("event", "First Response Byte"))
 }
 func (h *clientTrace) connectStart(network, addr string) {
 	h.span.LogFields(
-		log.String("event", "Connect Start"),
-		log.String("network", network),
-		log.String("addr", addr),
+		ot_log.String("event", "Connect Start"),
+		ot_log.String("network", network),
+		ot_log.String("addr", addr),
 	)
 }
 func (h *clientTrace) connectDone(network, addr string, err error) {
 	h.span.LogFields(
-		log.String("event", "Connect Done"),
-		log.String("network", network),
-		log.String("addr", addr),
-		log.Object("error", err),
+		ot_log.String("event", "Connect Done"),
+		ot_log.String("network", network),
+		ot_log.String("addr", addr),
+		ot_log.Object("error", err),
 	)
 }
 
 func (h *clientTrace) tlsHandshakeStart() {
-	h.span.LogFields(log.String("event", "TLS Handshake Start"))
+	h.span.LogFields(ot_log.String("event", "TLS Handshake Start"))
 }
 func (h *clientTrace) tlsHandshakeDone(state tls.ConnectionState, err error) {
 	h.span.LogFields(
-		log.String("event", "TLS Handshake Done"),
-		log.Object("error", err),
+		ot_log.String("event", "TLS Handshake Done"),
+		ot_log.Object("error", err),
 	)
 }
 func (h *clientTrace) wroteHeaders() {
-	h.span.LogFields(log.String("event", "Wrote Headers"))
+	h.span.LogFields(ot_log.String("event", "Wrote Headers"))
 }
 
 func (h *clientTrace) wroteRequest(info httptrace.WroteRequestInfo) {
 	h.span.LogFields(
-		log.String("event", "Wrote Request Info"),
-		log.Object("error", info.Err),
+		ot_log.String("event", "Wrote Request Info"),
+		ot_log.Object("error", info.Err),
 	)
 }
