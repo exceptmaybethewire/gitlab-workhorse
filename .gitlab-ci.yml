@@ -6,6 +6,9 @@ verify:
   - make verify
 
 .test_template: &test_definition
+  services:
+    - name: registry.gitlab.com/gitlab-org/build/cng/gitaly:latest
+      alias: gitaly
   script:
   - apt update -qq && apt install -y unzip bzip2
   - go version
