@@ -9,6 +9,8 @@ verify:
   services:
     - name: registry.gitlab.com/gitlab-org/build/cng/gitaly:latest
       alias: gitaly
+  variables:
+    GITALY_ADDRESS: "tcp://gitaly:8075"
   script:
   - apt update -qq && apt install -y unzip bzip2
   - go version
