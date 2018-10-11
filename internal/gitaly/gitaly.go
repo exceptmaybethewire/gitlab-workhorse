@@ -51,6 +51,15 @@ func NewRepositoryClient(server Server) (*RepositoryClient, error) {
 	return &RepositoryClient{grpcClient}, nil
 }
 
+func NewNamespaceClient(server Server) (*NamespaceClient, error) {
+	conn, err := getOrCreateConnection(server)
+	if err != nil {
+		return nil, err
+	}
+	grpcClient := pb.NewNamespaceServiceClient(conn)
+	return &NamespaceClient{grpcClient}, nil
+}
+
 func NewDiffClient(server Server) (*DiffClient, error) {
 	conn, err := getOrCreateConnection(server)
 	if err != nil {
