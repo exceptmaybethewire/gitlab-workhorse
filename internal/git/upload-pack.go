@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
@@ -28,37 +27,9 @@ func handleUploadPack(w *HttpResponseWriter, r *http.Request, a *api.Response) e
 	action := getService(r)
 	writePostRPCHeader(w, action)
 
-	if Testing && a.GitalyServer.Address == "" {
-		// This code path is no longer reachable in GitLab 10.0
-		err = handleUploadPackLocally(a, r, buffer, w, action)
-	} else {
-		gitProtocol := r.Header.Get("Git-Protocol")
+	gitProtocol := r.Header.Get("Git-Protocol")
 
-		err = handleUploadPackWithGitaly(r.Context(), a, buffer, w, gitProtocol)
-	}
-
-	return err
-}
-
-func handleUploadPackLocally(a *api.Response, r *http.Request, stdin *os.File, stdout io.Writer, action string) error {
-	isShallowClone := scanDeepen(stdin)
-	if _, err := stdin.Seek(0, 0); err != nil {
-		return fmt.Errorf("seek tempfile: %v", err)
-	}
-
-	cmd, err := startGitCommand(a, stdin, stdout, action)
-	if err != nil {
-		return fmt.Errorf("startGitCommand: %v", err)
-	}
-	defer helper.CleanUpProcessGroup(cmd)
-
-	if err := cmd.Wait(); err != nil && !(isExitError(err) && isShallowClone) {
-		helper.LogError(r, fmt.Errorf("wait for %v: %v", cmd.Args, err))
-		// Return nil because the response body has been written to already.
-		return nil
-	}
-
-	return nil
+	return handleUploadPackWithGitaly(r.Context(), a, buffer, w, gitProtocol)
 }
 
 func handleUploadPackWithGitaly(ctx context.Context, a *api.Response, clientRequest io.Reader, clientResponse io.Writer, gitProtocol string) error {

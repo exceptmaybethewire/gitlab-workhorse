@@ -8,16 +8,6 @@ import (
 	"strconv"
 )
 
-func pktLine(w io.Writer, s string) error {
-	_, err := fmt.Fprintf(w, "%04x%s", len(s)+4, s)
-	return err
-}
-
-func pktFlush(w io.Writer) error {
-	_, err := fmt.Fprint(w, "0000")
-	return err
-}
-
 func scanDeepen(body io.Reader) bool {
 	scanner := bufio.NewScanner(body)
 	scanner.Split(pktLineSplitter)

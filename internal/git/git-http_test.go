@@ -31,20 +31,11 @@ func createTestPayload() []byte {
 	return bytes.Repeat([]byte{'0'}, expectedBytes)
 }
 
-func TestHandleUploadPack(t *testing.T) {
-	testHandlePostRpc(t, "git-upload-pack", handleUploadPack)
-}
-
 func TestHandleReceivePack(t *testing.T) {
 	testHandlePostRpc(t, "git-receive-pack", handleReceivePack)
 }
 
 func testHandlePostRpc(t *testing.T, action string, handler func(*HttpResponseWriter, *http.Request, *api.Response) error) {
-	defer func(oldTesting bool) {
-		Testing = oldTesting
-	}(Testing)
-	Testing = true
-
 	execCommand = fakeExecCommand
 	defer func() { execCommand = exec.Command }()
 

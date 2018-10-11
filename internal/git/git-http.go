@@ -95,11 +95,6 @@ func getService(r *http.Request) string {
 	return filepath.Base(r.URL.Path)
 }
 
-func isExitError(err error) bool {
-	_, ok := err.(*exec.ExitError)
-	return ok
-}
-
 func subCommand(rpc string) string {
 	return strings.TrimPrefix(rpc, "git-")
 }
