@@ -11,6 +11,7 @@ verify:
       alias: gitaly
   variables:
     GITALY_ADDRESS: "tcp://gitaly:8075"
+    SHELL_SECRET_TOKEN: "testtoken"
   script:
   - apt update -qq && apt install -y unzip bzip2
   - go version
