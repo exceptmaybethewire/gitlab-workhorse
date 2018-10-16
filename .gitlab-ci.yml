@@ -7,7 +7,7 @@ verify:
 
 .test_template: &test_definition
   services:
-    - name: registry.gitlab.com/gitlab-org/build/cng/gitaly:7044e19654377ad0a06212339e958e1298f7a32e
+    - name: registry.gitlab.com/gitlab-org/build/cng/gitaly:d049ed46b625867489a4b58ef09e5f6ad18066d2
       alias: gitaly
   variables:
     GITALY_ADDRESS: "tcp://gitaly:8075"
