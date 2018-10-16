@@ -161,16 +161,28 @@
 			"revisionTime": "2016-01-10T10:55:54Z"
 		},
 		{
-			"checksumSHA1": "5IUpj+w/TVy3rj8oL3lFS0p7TEc=",
+			"checksumSHA1": "frS661rlSEZWE9CezHhnFioQK/I=",
 			"path": "github.com/prometheus/client_golang/prometheus",
-			"revision": "bcbbc08eb2ddff3af83bbf11e7ec13b4fd730b6e",
-			"revisionTime": "2018-07-13T20:10:52Z"
+			"revision": "1cafe34db7fdec6022e17e00e1c1ea501022f3e4",
+			"revisionTime": "2018-10-15T14:52:39Z",
+			"version": "v0.9",
+			"versionExact": "v0.9.0"
+		},
+		{
+			"checksumSHA1": "UBqhkyjCz47+S19MVTigxJ2VjVQ=",
+			"path": "github.com/prometheus/client_golang/prometheus/internal",
+			"revision": "1cafe34db7fdec6022e17e00e1c1ea501022f3e4",
+			"revisionTime": "2018-10-15T14:52:39Z",
+			"version": "v0.9",
+			"versionExact": "v0.9.0"
 		},
 		{
 			"checksumSHA1": "d5BiEvD8MrgpWQ6PQJUvawJsMak=",
 			"path": "github.com/prometheus/client_golang/prometheus/promhttp",
-			"revision": "bcbbc08eb2ddff3af83bbf11e7ec13b4fd730b6e",
-			"revisionTime": "2018-07-13T20:10:52Z"
+			"revision": "1cafe34db7fdec6022e17e00e1c1ea501022f3e4",
+			"revisionTime": "2018-10-15T14:52:39Z",
+			"version": "v0.9",
+			"versionExact": "v0.9.0"
 		},
 		{
 			"checksumSHA1": "V8xkqgmP66sq2ZW4QO5wi9a4oZE=",
@@ -179,22 +191,22 @@
 			"revisionTime": "2018-07-12T10:51:10Z"
 		},
 		{
-			"checksumSHA1": "vPdC/DzEm7YbzRir2wwnpLPfay8=",
+			"checksumSHA1": "hGf3xT6gRaJh2zAEbWj9YnV+K+0=",
 			"path": "github.com/prometheus/common/expfmt",
-			"revision": "7600349dcfe1abd18d72d3a1770870d9800a7801",
-			"revisionTime": "2018-05-18T15:47:59Z"
+			"revision": "bcb74de08d37a417cb6789eec1d6c810040f0470",
+			"revisionTime": "2018-10-15T12:42:27Z"
 		},
 		{
 			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
 			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
-			"revision": "7600349dcfe1abd18d72d3a1770870d9800a7801",
-			"revisionTime": "2018-05-18T15:47:59Z"
+			"revision": "bcb74de08d37a417cb6789eec1d6c810040f0470",
+			"revisionTime": "2018-10-15T12:42:27Z"
 		},
 		{
 			"checksumSHA1": "EXTRY7DL9gFW8c341Dk6LDXCBn8=",
 			"path": "github.com/prometheus/common/model",
-			"revision": "7600349dcfe1abd18d72d3a1770870d9800a7801",
-			"revisionTime": "2018-05-18T15:47:59Z"
+			"revision": "bcb74de08d37a417cb6789eec1d6c810040f0470",
+			"revisionTime": "2018-10-15T12:42:27Z"
 		},
 		{
 			"checksumSHA1": "jo/zxF+Pfj5yZjReTKGOACq9IBs=",
