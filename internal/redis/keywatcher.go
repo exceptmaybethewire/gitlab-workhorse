@@ -6,13 +6,11 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
-
 	"github.com/garyburd/redigo/redis"
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
 var (

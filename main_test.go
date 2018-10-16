@@ -18,7 +18,9 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/git"
@@ -26,11 +28,6 @@ import (
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/upstream"
-
-	pb "gitlab.com/gitlab-org/gitaly-proto/go"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const scratchDir = "testdata/scratch"

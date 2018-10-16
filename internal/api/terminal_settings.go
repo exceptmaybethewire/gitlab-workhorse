@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	"github.com/gorilla/websocket"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 

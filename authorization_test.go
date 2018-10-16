@@ -7,13 +7,12 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/dgrijalva/jwt-go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/secret"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
-
-	"github.com/dgrijalva/jwt-go"
 )
 
 func okHandler(w http.ResponseWriter, _ *http.Request, _ *api.Response) {

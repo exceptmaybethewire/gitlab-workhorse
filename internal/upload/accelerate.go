@@ -6,11 +6,10 @@ import (
 	"mime/multipart"
 	"net/http"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/secret"
-
-	jwt "github.com/dgrijalva/jwt-go"
 )
 
 const RewrittenFieldsHeader = "Gitlab-Workhorse-Multipart-Fields"

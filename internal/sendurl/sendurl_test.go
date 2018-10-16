@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/testhelper"
 )
 

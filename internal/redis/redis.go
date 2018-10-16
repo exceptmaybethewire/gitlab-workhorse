@@ -7,13 +7,11 @@ import (
 	"net/url"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
-
 	sentinel "github.com/FZambia/go-sentinel"
 	"github.com/garyburd/redigo/redis"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 )
 
 var (

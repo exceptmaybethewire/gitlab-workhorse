@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	logging "gitlab.com/gitlab-org/gitlab-workhorse/internal/log"
 )
 

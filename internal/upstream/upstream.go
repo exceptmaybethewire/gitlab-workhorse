@@ -11,13 +11,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/sebest/xff"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/badgateway"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/upload"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/urlprefix"
-
-	"github.com/sebest/xff"
 )
 
 var (

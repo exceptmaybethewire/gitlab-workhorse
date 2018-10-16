@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/log"
 )
 

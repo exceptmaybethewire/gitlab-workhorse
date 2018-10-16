@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 
 var (

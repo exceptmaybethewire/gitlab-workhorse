@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	"github.com/gorilla/websocket"
-
 	apipkg "gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/artifacts"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/builds"

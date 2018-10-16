@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/api"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/filestore"
 )

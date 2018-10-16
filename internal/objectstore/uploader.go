@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
-
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 )
 

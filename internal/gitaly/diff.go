@@ -6,9 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitaly/streamio"
-
 	pb "gitlab.com/gitlab-org/gitaly-proto/go"
+	"gitlab.com/gitlab-org/gitaly/streamio"
 )
 
 type DiffClient struct {

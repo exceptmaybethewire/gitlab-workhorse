@@ -6,12 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/gitaly"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/helper"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/log"
 	"gitlab.com/gitlab-org/gitlab-workhorse/internal/senddata"
-
-	pb "gitlab.com/gitlab-org/gitaly-proto/go"
 )
 
 type blob struct{ senddata.Prefix }
