@@ -8,7 +8,7 @@ verify:
 .test_template: &test_definition
   services:
     - name: registry.gitlab.com/gitlab-org/build/cng/gitaly:fix-default-gitaly-config
-      command: ["bash", "-c", "mkdir -p /tmp/hooks && exec /scripts/start-workhorse"]
+      command: ["bash", "-c", "mkdir -p /tmp/hooks && exec /scripts/process-wrapper"]
       alias: gitaly
   variables:
     GITALY_ADDRESS: "tcp://gitaly:8075"
