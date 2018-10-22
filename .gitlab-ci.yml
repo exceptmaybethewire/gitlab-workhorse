@@ -1,7 +1,6 @@
-image: golang:1.8
+image: golang:1.10
 
 verify:
-  image: golang:1.10
   script:
   - make verify
 
@@ -11,15 +10,11 @@ verify:
   - go version
   - make test
 
-test using go 1.8:
-  <<: *test_definition
-
-test using go 1.9:
-  image: golang:1.9
-  <<: *test_definition
-
 test using go 1.10:
-  image: golang:1.10
+  <<: *test_definition
+
+test using go 1.11:
+  image: golang:1.11
   <<: *test_definition
 
 test:release:
